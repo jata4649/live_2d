@@ -74,6 +74,10 @@ export const api = {
     ),
   analyze: (id: string, analyzer = 'mock') =>
     request<PartsPlan>(`/projects/${id}/analyze`, json({ analyzer })),
+  listSegmenters: () =>
+    request<{ method: string; label: string; available: boolean; reason: string }[]>(
+      '/segmenters',
+    ),
   getParts: (id: string) => request<PartsPlan>(`/projects/${id}/parts`),
   putParts: (id: string, plan: PartsPlan) =>
     request<PartsPlan>(`/projects/${id}/parts`, { ...json(plan), method: 'PUT' }),

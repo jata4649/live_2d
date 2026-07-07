@@ -80,6 +80,23 @@ python3 -m uvicorn main:app --port 8787
 - モデルは既定で `claude-opus-4-8`(`ALS_CLAUDE_MODEL` で変更可)
 - 出力 JSON は Pydantic で検証し、失敗時はエラーをフィードバックして1回再試行します
 
+## SAM2 セグメンテーション(オプション)
+
+torch と SAM2 をインストールすると、パーツ編集画面で「SAM2(矩形/ポイントプロンプト)」を
+選択できます(未導入でも簡易切り抜きへ自動フォールバックします)。
+
+```bash
+pip install torch
+pip install "git+https://github.com/facebookresearch/sam2.git"
+```
+
+- モデルは初回実行時に Hugging Face Hub から自動ダウンロード
+  (既定: `facebook/sam2-hiera-tiny`、`ALS_SAM2_MODEL` で変更可)
+- デバイスは `ALS_SAM2_DEVICE`(既定 `cpu`、GPU があれば `cuda`)
+- HF に到達できない環境ではローカルの checkpoint を使用可能:
+  `ALS_SAM2_CHECKPOINT=/path/to/sam2.1_hiera_tiny.pt`(config は `ALS_SAM2_CONFIG`)
+- 可用性は `GET /api/v1/segmenters` で確認できます
+
 ## Cubism Editor への読み込み
 
 1. 出力画面から `live2d_import.psd` をダウンロード
@@ -102,7 +119,7 @@ outputs/projects/{id}/  +  SQLite(一覧・ジョブ)
 | 抽象クラス | MVP実装 | 将来 |
 |---|---|---|
 | `CharacterAnalyzer` | MockAnalyzer(標準テンプレート)+ **ClaudeAnalyzer(実装済)** | GPT / Gemini / ローカルVLM |
-| `Segmenter` | Mock / ManualBox(アルファ+GrabCut) | SAM2(box/point)/ 外部API |
+| `Segmenter` | Mock / ManualBox(アルファ+GrabCut)+ **Sam2Segmenter(実装済)** | 外部API |
 | `PsdExporter` | 自前PSDライター + JSXフォールバック | Photoshop UXP / Krita / ORA |
 | `Inpainter` | Noop(inpaint_tasks.json 生成のみ) | Inpainting API / ローカルモデル |
 

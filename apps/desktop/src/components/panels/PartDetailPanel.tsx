@@ -1,11 +1,23 @@
 // 選択パーツの詳細設定パネル。
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useJobStore } from '../../stores/jobStore'
 import { usePartsStore } from '../../stores/partsStore'
 import type { Part, SegmentationMethod } from '../../types'
 
+type SegmenterInfo = { method: string; label: string; available: boolean; reason: string }
+let segmentersCache: SegmenterInfo[] | null = null
+
 export function PartDetailPanel() {
+  const [segmenters, setSegmenters] = useState<SegmenterInfo[]>(segmentersCache ?? [])
+  useEffect(() => {
+    if (segmentersCache) return
+    void api.listSegmenters().then((s) => {
+      segmentersCache = s
+      setSegmenters(s)
+    }).catch(() => {})
+  }, [])
   const { id: projectId } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const plan = usePartsStore((s) => s.plan)
@@ -101,10 +113,18 @@ export function PartDetailPanel() {
           value={part.segmentation.method}
           onChange={(e) => seg('method', e.target.value as SegmentationMethod)}
         >
-          <option value="manual_box">矩形 + 簡易切り抜き</option>
-          <option value="mock">モック(楕円)</option>
-          <option value="sam2_box">SAM2 box(Phase 2)</option>
-          <option value="sam2_points">SAM2 points(Phase 2)</option>
+          {(segmenters.length > 0
+            ? segmenters
+            : [
+                { method: 'manual_box', label: '矩形 + 簡易切り抜き', available: true, reason: '' },
+                { method: 'mock', label: 'モック(楕円)', available: true, reason: '' },
+              ]
+          ).map((s) => (
+            <option key={s.method} value={s.method} disabled={!s.available}>
+              {s.label}
+              {!s.available ? `(${s.reason})` : ''}
+            </option>
+          ))}
         </select>
       </Field>
 
