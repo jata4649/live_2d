@@ -1,0 +1,196 @@
+{
+  "$defs": {
+    "EyeType": {
+      "enum": [
+        "blink",
+        "gaze",
+        "full"
+      ],
+      "title": "EyeType",
+      "type": "string"
+    },
+    "FaceRange": {
+      "enum": [
+        "small",
+        "medium",
+        "large"
+      ],
+      "title": "FaceRange",
+      "type": "string"
+    },
+    "MouthType": {
+      "enum": [
+        "open_close",
+        "aiueo",
+        "singing",
+        "auto"
+      ],
+      "title": "MouthType",
+      "type": "string"
+    },
+    "ProjectStatus": {
+      "properties": {
+        "analysis_done": {
+          "default": false,
+          "title": "Analysis Done",
+          "type": "boolean"
+        },
+        "interview_done": {
+          "default": false,
+          "title": "Interview Done",
+          "type": "boolean"
+        },
+        "segmentation_done": {
+          "default": false,
+          "title": "Segmentation Done",
+          "type": "boolean"
+        },
+        "quality_checked": {
+          "default": false,
+          "title": "Quality Checked",
+          "type": "boolean"
+        },
+        "export_done": {
+          "default": false,
+          "title": "Export Done",
+          "type": "boolean"
+        }
+      },
+      "title": "ProjectStatus",
+      "type": "object"
+    },
+    "QualityLevel": {
+      "enum": [
+        "draft",
+        "standard",
+        "high",
+        "commercial"
+      ],
+      "title": "QualityLevel",
+      "type": "string"
+    },
+    "SourceImage": {
+      "properties": {
+        "original_path": {
+          "default": "source/original.png",
+          "title": "Original Path",
+          "type": "string"
+        },
+        "normalized_path": {
+          "default": "source/normalized.png",
+          "title": "Normalized Path",
+          "type": "string"
+        },
+        "width": {
+          "default": 0,
+          "title": "Width",
+          "type": "integer"
+        },
+        "height": {
+          "default": 0,
+          "title": "Height",
+          "type": "integer"
+        },
+        "has_alpha": {
+          "default": false,
+          "title": "Has Alpha",
+          "type": "boolean"
+        },
+        "color_profile": {
+          "default": "sRGB",
+          "title": "Color Profile",
+          "type": "string"
+        }
+      },
+      "title": "SourceImage",
+      "type": "object"
+    },
+    "UserPreferences": {
+      "properties": {
+        "quality_level": {
+          "$ref": "#/$defs/QualityLevel",
+          "default": "standard"
+        },
+        "target": {
+          "default": "VTube Studio",
+          "title": "Target",
+          "type": "string"
+        },
+        "face_range": {
+          "$ref": "#/$defs/FaceRange",
+          "default": "medium"
+        },
+        "mouth_type": {
+          "$ref": "#/$defs/MouthType",
+          "default": "auto"
+        },
+        "eye_type": {
+          "$ref": "#/$defs/EyeType",
+          "default": "full"
+        },
+        "hair_physics": {
+          "default": true,
+          "title": "Hair Physics",
+          "type": "boolean"
+        },
+        "accessory_physics": {
+          "default": true,
+          "title": "Accessory Physics",
+          "type": "boolean"
+        },
+        "arm_movement": {
+          "default": false,
+          "title": "Arm Movement",
+          "type": "boolean"
+        },
+        "expression_variants": {
+          "default": false,
+          "title": "Expression Variants",
+          "type": "boolean"
+        },
+        "accessories": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Accessories",
+          "type": "array"
+        }
+      },
+      "title": "UserPreferences",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "project_id": {
+      "title": "Project Id",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+    },
+    "source_image": {
+      "$ref": "#/$defs/SourceImage"
+    },
+    "preferences": {
+      "$ref": "#/$defs/UserPreferences"
+    },
+    "status": {
+      "$ref": "#/$defs/ProjectStatus"
+    }
+  },
+  "required": [
+    "project_id",
+    "name"
+  ],
+  "title": "Project",
+  "type": "object"
+}

@@ -1,0 +1,65 @@
+{
+  "$defs": {
+    "InpaintTask": {
+      "properties": {
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "target_part_id": {
+          "title": "Target Part Id",
+          "type": "string"
+        },
+        "occluder_part_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Occluder Part Ids",
+          "type": "array"
+        },
+        "region_mask_path": {
+          "default": "",
+          "title": "Region Mask Path",
+          "type": "string"
+        },
+        "reason": {
+          "default": "",
+          "title": "Reason",
+          "type": "string"
+        },
+        "method": {
+          "default": "none",
+          "title": "Method",
+          "type": "string"
+        },
+        "priority": {
+          "default": "normal",
+          "title": "Priority",
+          "type": "string"
+        },
+        "status": {
+          "default": "planned",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "target_part_id"
+      ],
+      "title": "InpaintTask",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "tasks": {
+      "items": {
+        "$ref": "#/$defs/InpaintTask"
+      },
+      "title": "Tasks",
+      "type": "array"
+    }
+  },
+  "title": "InpaintTaskList",
+  "type": "object"
+}

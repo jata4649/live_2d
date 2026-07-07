@@ -1,0 +1,180 @@
+import { useCallback, useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { api, fileUrl } from '../api/client'
+import { BBoxCanvas } from '../components/canvas/BBoxCanvas'
+import { LogPanel } from '../components/panels/LogPanel'
+import { PartDetailPanel } from '../components/panels/PartDetailPanel'
+import { PartsTree } from '../components/parts-tree/PartsTree'
+import { useJobStore } from '../stores/jobStore'
+import { usePartsStore } from '../stores/partsStore'
+import { useProjectStore } from '../stores/projectStore'
+import type { Part, QualityReport } from '../types'
+
+export function PartsEditorPage() {
+  const { id } = useParams<{ id: string }>()
+  const { current, loadProject } = useProjectStore()
+  const plan = usePartsStore((s) => s.plan)
+  const dirty = usePartsStore((s) => s.dirty)
+  const load = usePartsStore((s) => s.load)
+  const save = usePartsStore((s) => s.save)
+  const addPart = usePartsStore((s) => s.addPart)
+  const bumpMaskVersion = usePartsStore((s) => s.bumpMaskVersion)
+  const { runJob, log } = useJobStore()
+  const [showAllBoxes, setShowAllBoxes] = useState(false)
+  const [showMask, setShowMask] = useState(true)
+  const [report, setReport] = useState<QualityReport | null>(null)
+  const [masks, setMasks] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!id) return
+    if (current?.project_id !== id) void loadProject(id)
+    void load(id)
+    api.getQualityReport(id).then(setReport).catch(() => setReport(null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
+  // マスク生成状態の把握(HEAD 代わりに segmentation_tasks を見る簡易版)
+  const refreshMasks = useCallback(async () => {
+    if (!id || !plan) return
+    const found = new Set<string>()
+    await Promise.all(
+      plan.parts.map(async (p) => {
+        const res = await fetch(
+          `/api/v1/projects/${id}/files/masks/${p.id}_mask.png`,
+          { method: 'HEAD' },
+        )
+        if (res.ok) found.add(p.id)
+      }),
+    )
+    setMasks(found)
+  }, [id, plan])
+
+  useEffect(() => {
+    void refreshMasks()
+  }, [refreshMasks])
+
+  if (!id || !current) return <p className="p-8 text-neutral-400">読み込み中...</p>
+
+  const runAllSegmentation = async () => {
+    await save()
+    await runJob(() => api.runSegmentationAll(id), 'セグメンテーション一括実行')
+    bumpMaskVersion()
+    await refreshMasks()
+  }
+
+  const runAllLayers = async () => {
+    await save()
+    await runJob(() => api.generateLayers(id), 'レイヤー一括生成')
+  }
+
+  const runQualityCheck = async () => {
+    await save()
+    const r = await api.qualityCheck(id)
+    setReport(r)
+    log(`品質チェック完了: ${r.overall_score}点 / issue ${r.issues.length}件`)
+  }
+
+  const addEmptyPart = () => {
+    const n = (plan?.parts.length ?? 0) + 1
+    const w = current.source_image.width
+    const h = current.source_image.height
+    const part: Part = {
+      id: `custom_part_${String(n).padStart(2, '0')}`,
+      name_jp: `新規パーツ${n}`,
+      name_en: `Custom Part ${n}`,
+      group: 'Custom',
+      z_order: 200,
+      visible: true,
+      locked: false,
+      required: false,
+      part_type: 'other',
+      visual_description: '',
+      segmentation: {
+        method: 'manual_box',
+        bbox: [Math.round(w * 0.4), Math.round(h * 0.4), Math.round(w * 0.2), Math.round(h * 0.2)],
+        positive_points: [],
+        negative_points: [],
+        text_prompt: '',
+      },
+      files: { mask_path: `masks/custom_part_${n}_mask.png`, layer_path: `layers/custom_part_${n}.png` },
+      live2d: { usage: [], parent_deformer_hint: '', physics_hint: '' },
+      processing: {
+        overlap_bleed_px: 4,
+        edge_feather_px: 1,
+        needs_inpaint_under: false,
+        inpaint_reason: '',
+      },
+      quality: { priority: 'normal', manual_review_required: false, score: null },
+    }
+    addPart(part)
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* ツールバー */}
+      <div className="flex items-center gap-2 border-b border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs">
+        <button className="btn" onClick={() => void runAllSegmentation()}>
+          全マスク一括生成
+        </button>
+        <button className="btn" onClick={() => void runAllLayers()}>
+          全レイヤー生成
+        </button>
+        <button className="btn" onClick={() => void runQualityCheck()}>
+          品質チェック
+        </button>
+        <button className="btn" onClick={addEmptyPart}>
+          + パーツ追加
+        </button>
+        <label className="ml-4 flex items-center gap-1 text-neutral-300">
+          <input
+            type="checkbox"
+            checked={showAllBoxes}
+            onChange={(e) => setShowAllBoxes(e.target.checked)}
+          />
+          全bbox表示
+        </label>
+        <label className="flex items-center gap-1 text-neutral-300">
+          <input
+            type="checkbox"
+            checked={showMask}
+            onChange={(e) => setShowMask(e.target.checked)}
+          />
+          マスク重畳
+        </label>
+        <button
+          className={`ml-auto rounded px-4 py-1 font-medium ${
+            dirty ? 'bg-amber-600 hover:bg-amber-500' : 'bg-neutral-700 text-neutral-400'
+          }`}
+          onClick={() => void save().then(() => log('parts.json を保存しました'))}
+        >
+          {dirty ? '保存(未保存の変更あり)' : '保存済み'}
+        </button>
+      </div>
+
+      {/* 3ペイン */}
+      <div className="flex min-h-0 flex-1">
+        <aside className="w-64 shrink-0 overflow-y-auto border-r border-neutral-700 bg-neutral-850 bg-neutral-800/50">
+          <PartsTree maskExists={(pid) => masks.has(pid)} />
+        </aside>
+        <section className="min-w-0 flex-1">
+          <BBoxCanvas
+            projectId={id}
+            imageUrl={fileUrl(id, 'source/normalized.png', 1)}
+            imageWidth={current.source_image.width}
+            imageHeight={current.source_image.height}
+            showAllBoxes={showAllBoxes}
+            showMask={showMask}
+          />
+        </section>
+        <aside className="w-72 shrink-0 overflow-y-auto border-l border-neutral-700 bg-neutral-800/50">
+          <PartDetailPanel />
+        </aside>
+      </div>
+
+      {/* 下部ログ */}
+      <div className="h-40 shrink-0 border-t border-neutral-700 bg-neutral-800/70">
+        <LogPanel report={report} />
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,99 @@
+{
+  "$defs": {
+    "IssueCode": {
+      "enum": [
+        "DUPLICATE_LAYER_NAME",
+        "EMPTY_LAYER",
+        "MISSING_MASK",
+        "COMPOSITE_DIFF",
+        "Z_ORDER_ANOMALY",
+        "LR_NAMING_MISMATCH",
+        "MISSING_REQUIRED_PART",
+        "INSUFFICIENT_BLEED",
+        "EDGE_ARTIFACT",
+        "PSD_CONSTRAINT_VIOLATION",
+        "FILE_MISSING"
+      ],
+      "title": "IssueCode",
+      "type": "string"
+    },
+    "QualityIssue": {
+      "properties": {
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "part_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Part Id"
+        },
+        "code": {
+          "$ref": "#/$defs/IssueCode"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "suggested_fix": {
+          "default": "",
+          "title": "Suggested Fix",
+          "type": "string"
+        },
+        "auto_fix_available": {
+          "default": false,
+          "title": "Auto Fix Available",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "severity",
+        "code",
+        "message"
+      ],
+      "title": "QualityIssue",
+      "type": "object"
+    },
+    "Severity": {
+      "enum": [
+        "high",
+        "medium",
+        "low",
+        "info"
+      ],
+      "title": "Severity",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "overall_score": {
+      "default": 0,
+      "title": "Overall Score",
+      "type": "integer"
+    },
+    "approved": {
+      "default": false,
+      "title": "Approved",
+      "type": "boolean"
+    },
+    "checked_at": {
+      "title": "Checked At",
+      "type": "string"
+    },
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/QualityIssue"
+      },
+      "title": "Issues",
+      "type": "array"
+    }
+  },
+  "title": "QualityReport",
+  "type": "object"
+}

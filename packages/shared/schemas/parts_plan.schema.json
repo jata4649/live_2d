@@ -1,0 +1,270 @@
+{
+  "$defs": {
+    "Live2DInfo": {
+      "properties": {
+        "usage": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Usage",
+          "type": "array"
+        },
+        "parent_deformer_hint": {
+          "default": "",
+          "title": "Parent Deformer Hint",
+          "type": "string"
+        },
+        "physics_hint": {
+          "default": "",
+          "title": "Physics Hint",
+          "type": "string"
+        }
+      },
+      "title": "Live2DInfo",
+      "type": "object"
+    },
+    "Part": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name_jp": {
+          "title": "Name Jp",
+          "type": "string"
+        },
+        "name_en": {
+          "default": "",
+          "title": "Name En",
+          "type": "string"
+        },
+        "group": {
+          "default": "",
+          "title": "Group",
+          "type": "string"
+        },
+        "z_order": {
+          "default": 0,
+          "title": "Z Order",
+          "type": "integer"
+        },
+        "visible": {
+          "default": true,
+          "title": "Visible",
+          "type": "boolean"
+        },
+        "locked": {
+          "default": false,
+          "title": "Locked",
+          "type": "boolean"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "part_type": {
+          "$ref": "#/$defs/PartType",
+          "default": "other"
+        },
+        "visual_description": {
+          "default": "",
+          "title": "Visual Description",
+          "type": "string"
+        },
+        "segmentation": {
+          "$ref": "#/$defs/SegmentationSpec"
+        },
+        "files": {
+          "$ref": "#/$defs/PartFiles"
+        },
+        "live2d": {
+          "$ref": "#/$defs/Live2DInfo"
+        },
+        "processing": {
+          "$ref": "#/$defs/ProcessingSpec"
+        },
+        "quality": {
+          "$ref": "#/$defs/QualitySpec"
+        }
+      },
+      "required": [
+        "id",
+        "name_jp"
+      ],
+      "title": "Part",
+      "type": "object"
+    },
+    "PartFiles": {
+      "properties": {
+        "mask_path": {
+          "default": "",
+          "title": "Mask Path",
+          "type": "string"
+        },
+        "layer_path": {
+          "default": "",
+          "title": "Layer Path",
+          "type": "string"
+        }
+      },
+      "title": "PartFiles",
+      "type": "object"
+    },
+    "PartType": {
+      "enum": [
+        "face",
+        "eye",
+        "eyebrow",
+        "mouth",
+        "hair",
+        "body",
+        "clothes",
+        "accessory",
+        "other"
+      ],
+      "title": "PartType",
+      "type": "string"
+    },
+    "Priority": {
+      "enum": [
+        "low",
+        "normal",
+        "high"
+      ],
+      "title": "Priority",
+      "type": "string"
+    },
+    "ProcessingSpec": {
+      "properties": {
+        "overlap_bleed_px": {
+          "default": 4,
+          "title": "Overlap Bleed Px",
+          "type": "integer"
+        },
+        "edge_feather_px": {
+          "default": 1,
+          "title": "Edge Feather Px",
+          "type": "integer"
+        },
+        "needs_inpaint_under": {
+          "default": false,
+          "title": "Needs Inpaint Under",
+          "type": "boolean"
+        },
+        "inpaint_reason": {
+          "default": "",
+          "title": "Inpaint Reason",
+          "type": "string"
+        }
+      },
+      "title": "ProcessingSpec",
+      "type": "object"
+    },
+    "QualitySpec": {
+      "properties": {
+        "priority": {
+          "$ref": "#/$defs/Priority",
+          "default": "normal"
+        },
+        "manual_review_required": {
+          "default": false,
+          "title": "Manual Review Required",
+          "type": "boolean"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
+        }
+      },
+      "title": "QualitySpec",
+      "type": "object"
+    },
+    "SegmentationMethod": {
+      "enum": [
+        "mock",
+        "manual_box",
+        "alpha_color",
+        "sam2_box",
+        "sam2_points",
+        "external_api"
+      ],
+      "title": "SegmentationMethod",
+      "type": "string"
+    },
+    "SegmentationSpec": {
+      "properties": {
+        "method": {
+          "$ref": "#/$defs/SegmentationMethod",
+          "default": "manual_box"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "positive_points": {
+          "items": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "title": "Positive Points",
+          "type": "array"
+        },
+        "negative_points": {
+          "items": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "title": "Negative Points",
+          "type": "array"
+        },
+        "text_prompt": {
+          "default": "",
+          "title": "Text Prompt",
+          "type": "string"
+        }
+      },
+      "title": "SegmentationSpec",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "version": {
+      "default": "1.0",
+      "title": "Version",
+      "type": "string"
+    },
+    "parts": {
+      "items": {
+        "$ref": "#/$defs/Part"
+      },
+      "title": "Parts",
+      "type": "array"
+    }
+  },
+  "title": "PartsPlan",
+  "type": "object"
+}

@@ -1,0 +1,87 @@
+{
+  "$defs": {
+    "JobKind": {
+      "enum": [
+        "segmentation_run",
+        "layer_generate",
+        "quality_check",
+        "export_psd",
+        "export_layers_zip"
+      ],
+      "title": "JobKind",
+      "type": "string"
+    },
+    "JobStatus": {
+      "enum": [
+        "queued",
+        "running",
+        "done",
+        "failed"
+      ],
+      "title": "JobStatus",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "project_id": {
+      "title": "Project Id",
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/JobKind"
+    },
+    "status": {
+      "$ref": "#/$defs/JobStatus",
+      "default": "queued"
+    },
+    "progress": {
+      "default": 0.0,
+      "title": "Progress",
+      "type": "number"
+    },
+    "message": {
+      "default": "",
+      "title": "Message",
+      "type": "string"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Finished At"
+    }
+  },
+  "required": [
+    "job_id",
+    "project_id",
+    "kind"
+  ],
+  "title": "Job",
+  "type": "object"
+}

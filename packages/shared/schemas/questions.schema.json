@@ -1,0 +1,55 @@
+{
+  "$defs": {
+    "Question": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "type": {
+          "default": "single_choice",
+          "title": "Type",
+          "type": "string"
+        },
+        "choices": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Choices",
+          "type": "array"
+        },
+        "maps_to": {
+          "default": "",
+          "title": "Maps To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "category",
+        "question"
+      ],
+      "title": "Question",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "questions": {
+      "items": {
+        "$ref": "#/$defs/Question"
+      },
+      "title": "Questions",
+      "type": "array"
+    }
+  },
+  "title": "QuestionList",
+  "type": "object"
+}

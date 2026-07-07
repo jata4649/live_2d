@@ -12,7 +12,9 @@ from app.models.segmentation import InpaintTaskList
 router = APIRouter(tags=["files"])
 
 
-@router.get("/projects/{project_id}/files/{path:path}")
+@router.api_route(
+    "/projects/{project_id}/files/{path:path}", methods=["GET", "HEAD"]
+)
 def serve_file(project_id: str, path: str) -> FileResponse:
     paths = ProjectPaths(project_id)
     try:

@@ -1,0 +1,164 @@
+{
+  "$defs": {
+    "RefinementParams": {
+      "properties": {
+        "remove_small_noise": {
+          "default": true,
+          "title": "Remove Small Noise",
+          "type": "boolean"
+        },
+        "fill_holes": {
+          "default": true,
+          "title": "Fill Holes",
+          "type": "boolean"
+        },
+        "smooth_edges": {
+          "default": true,
+          "title": "Smooth Edges",
+          "type": "boolean"
+        },
+        "dilate_px": {
+          "default": 0,
+          "title": "Dilate Px",
+          "type": "integer"
+        },
+        "erode_px": {
+          "default": 0,
+          "title": "Erode Px",
+          "type": "integer"
+        },
+        "feather_px": {
+          "default": 0,
+          "title": "Feather Px",
+          "type": "integer"
+        }
+      },
+      "title": "RefinementParams",
+      "type": "object"
+    },
+    "SegmentationMethod": {
+      "enum": [
+        "mock",
+        "manual_box",
+        "alpha_color",
+        "sam2_box",
+        "sam2_points",
+        "external_api"
+      ],
+      "title": "SegmentationMethod",
+      "type": "string"
+    },
+    "SegmentationTask": {
+      "properties": {
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "part_id": {
+          "title": "Part Id",
+          "type": "string"
+        },
+        "image_path": {
+          "default": "source/normalized.png",
+          "title": "Image Path",
+          "type": "string"
+        },
+        "method": {
+          "$ref": "#/$defs/SegmentationMethod",
+          "default": "manual_box"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "positive_points": {
+          "items": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "title": "Positive Points",
+          "type": "array"
+        },
+        "negative_points": {
+          "items": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "title": "Negative Points",
+          "type": "array"
+        },
+        "text_prompt": {
+          "default": "",
+          "title": "Text Prompt",
+          "type": "string"
+        },
+        "expected_output": {
+          "default": "",
+          "title": "Expected Output",
+          "type": "string"
+        },
+        "refinement": {
+          "$ref": "#/$defs/RefinementParams"
+        },
+        "status": {
+          "$ref": "#/$defs/TaskStatus",
+          "default": "pending"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "required": [
+        "task_id",
+        "part_id"
+      ],
+      "title": "SegmentationTask",
+      "type": "object"
+    },
+    "TaskStatus": {
+      "enum": [
+        "pending",
+        "running",
+        "done",
+        "failed"
+      ],
+      "title": "TaskStatus",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "tasks": {
+      "items": {
+        "$ref": "#/$defs/SegmentationTask"
+      },
+      "title": "Tasks",
+      "type": "array"
+    }
+  },
+  "title": "SegmentationTaskList",
+  "type": "object"
+}

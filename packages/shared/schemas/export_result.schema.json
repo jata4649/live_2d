@@ -1,0 +1,47 @@
+{
+  "properties": {
+    "ok": {
+      "title": "Ok",
+      "type": "boolean"
+    },
+    "exporter": {
+      "title": "Exporter",
+      "type": "string"
+    },
+    "output_path": {
+      "default": "",
+      "title": "Output Path",
+      "type": "string"
+    },
+    "fallback_used": {
+      "default": false,
+      "title": "Fallback Used",
+      "type": "boolean"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    }
+  },
+  "required": [
+    "ok",
+    "exporter"
+  ],
+  "title": "ExportResult",
+  "type": "object"
+}
