@@ -64,6 +64,15 @@ def plan_inpaint(project_id: str) -> InpaintTaskList:
     return tasks
 
 
+@router.post("/projects/{project_id}/inpaint/run")
+def run_inpaint(project_id: str) -> dict:
+    """計画済みの補完タスクを実行する(簡易・最近傍フィル)。"""
+    from app.services.inpaint_service import run_inpaint as _run
+
+    results = _run(project_id)
+    return {"results": [r.model_dump() for r in results]}
+
+
 @router.get("/projects/{project_id}/inpaint/tasks", response_model=InpaintTaskList)
 def get_inpaint_tasks(project_id: str) -> InpaintTaskList:
     paths = ProjectPaths(project_id)

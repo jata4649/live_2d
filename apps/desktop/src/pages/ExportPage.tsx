@@ -66,12 +66,27 @@ export function ExportPage() {
               <span className="ml-1 text-sm font-normal">点 / {scoreLabel}</span>
             </span>
           )}
-          <button
-            className="btn ml-auto text-xs"
-            onClick={() => void api.qualityCheck(id).then(setReport)}
-          >
-            再チェック
-          </button>
+          <div className="ml-auto flex gap-2">
+            {report?.issues.some((i) => i.auto_fix_available) && (
+              <button
+                className="rounded bg-emerald-700 px-2 py-1 text-xs hover:bg-emerald-600"
+                onClick={() =>
+                  void api.qualityAutofix(id).then(({ applied, report: r }) => {
+                    applied.forEach((a) => log(`自動修正: ${a.part_id} — ${a.action}`))
+                    setReport(r)
+                  })
+                }
+              >
+                自動修正を適用
+              </button>
+            )}
+            <button
+              className="btn text-xs"
+              onClick={() => void api.qualityCheck(id).then(setReport)}
+            >
+              再チェック
+            </button>
+          </div>
         </div>
         <div className="max-h-60 space-y-1 overflow-y-auto">
           {report?.issues.map((issue, i) => (

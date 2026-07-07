@@ -128,6 +128,23 @@ export const api = {
   // --- Quality / Export ---
   qualityCheck: (id: string) =>
     request<QualityReport>(`/projects/${id}/quality/check`, { method: 'POST' }),
+  qualityAutofix: (id: string) =>
+    request<{ applied: { part_id: string; code: string; action: string }[]; report: QualityReport }>(
+      `/projects/${id}/quality/autofix`,
+      { method: 'POST' },
+    ),
+  inpaintPlan: (id: string) =>
+    request<{ tasks: unknown[] }>(`/projects/${id}/inpaint/plan`, { method: 'POST' }),
+  inpaintRun: (id: string) =>
+    request<{
+      results: {
+        target_part_id: string
+        occluder_part_id: string
+        region_px: number
+        status: string
+        reason: string
+      }[]
+    }>(`/projects/${id}/inpaint/run`, { method: 'POST' }),
   getQualityReport: (id: string) =>
     request<QualityReport>(`/projects/${id}/quality/report`),
   exportPsd: (id: string, force = false) =>
