@@ -12,7 +12,7 @@ interface PartsState {
   maskVersion: number // マスク更新時にインクリメントして画像を再読込させる
 
   load: (projectId: string) => Promise<void>
-  analyze: (projectId: string) => Promise<void>
+  analyze: (projectId: string, analyzer?: string) => Promise<void>
   save: () => Promise<void>
   select: (partId: string | null) => void
   updatePart: (partId: string, patch: Partial<Part>) => void
@@ -39,8 +39,8 @@ export const usePartsStore = create<PartsState>((set, get) => ({
     }
   },
 
-  async analyze(projectId) {
-    const plan = await api.analyze(projectId)
+  async analyze(projectId, analyzer = 'mock') {
+    const plan = await api.analyze(projectId, analyzer)
     set({ projectId, plan, dirty: false, selectedId: null })
   },
 

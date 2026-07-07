@@ -26,6 +26,14 @@ def serve_file(project_id: str, path: str) -> FileResponse:
     return FileResponse(p, headers={"Cache-Control": "no-cache"})
 
 
+@router.get("/analyzers")
+def get_analyzers() -> list[dict]:
+    """利用可能な AI アナライザーの一覧(UI セレクタ用)。"""
+    from app.ai.mock_analyzer import list_analyzers
+
+    return list_analyzers()
+
+
 @router.get("/jobs/{job_id}", response_model=Job)
 def get_job(job_id: str) -> Job:
     job = job_repo.get(job_id)

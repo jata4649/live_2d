@@ -109,7 +109,32 @@ class MockAnalyzer(CharacterAnalyzer):
 
 
 def get_analyzer(name: str = "mock") -> CharacterAnalyzer:
-    """Analyzer レジストリ。将来 claude / gpt / gemini 等を追加する。"""
+    """Analyzer レジストリ。gpt / gemini / ローカルVLM は将来ここに追加する。"""
     if name == "mock":
         return MockAnalyzer()
-    raise ValueError(f"未対応の analyzer です: {name}(利用可能: mock)")
+    if name == "claude":
+        from app.ai.claude_analyzer import ClaudeAnalyzer
+
+        return ClaudeAnalyzer()
+    raise ValueError(f"未対応の analyzer です: {name}(利用可能: mock, claude)")
+
+
+def list_analyzers() -> list[dict]:
+    """利用可能な analyzer と利用可否を返す(UI のセレクタ用)。"""
+    from app.ai.claude_analyzer import claude_available
+
+    available, reason = claude_available()
+    return [
+        {
+            "name": "mock",
+            "label": "標準テンプレート(オフライン)",
+            "available": True,
+            "reason": "",
+        },
+        {
+            "name": "claude",
+            "label": "Claude AI 解析",
+            "available": available,
+            "reason": reason,
+        },
+    ]

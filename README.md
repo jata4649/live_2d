@@ -65,6 +65,21 @@ cd apps/desktop && npm test        # Vitest
 npm run typecheck                  # tsc
 ```
 
+## Claude AI 解析(オプション)
+
+`ANTHROPIC_API_KEY` を設定してバックエンドを起動すると、ヒアリング画面で
+「Claude AI 解析」を選択できます(未設定でもモック解析でフル動作します)。
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+# pip install anthropic  (未導入の場合)
+python3 -m uvicorn main:app --port 8787
+```
+
+- 画像は内部処理用の縮小版を送信し、bbox は元解像度へ自動換算されます
+- モデルは既定で `claude-opus-4-8`(`ALS_CLAUDE_MODEL` で変更可)
+- 出力 JSON は Pydantic で検証し、失敗時はエラーをフィードバックして1回再試行します
+
 ## Cubism Editor への読み込み
 
 1. 出力画面から `live2d_import.psd` をダウンロード
@@ -86,7 +101,7 @@ outputs/projects/{id}/  +  SQLite(一覧・ジョブ)
 
 | 抽象クラス | MVP実装 | 将来 |
 |---|---|---|
-| `CharacterAnalyzer` | MockAnalyzer(標準テンプレート) | Claude / GPT / Gemini / ローカルVLM |
+| `CharacterAnalyzer` | MockAnalyzer(標準テンプレート)+ **ClaudeAnalyzer(実装済)** | GPT / Gemini / ローカルVLM |
 | `Segmenter` | Mock / ManualBox(アルファ+GrabCut) | SAM2(box/point)/ 外部API |
 | `PsdExporter` | 自前PSDライター + JSXフォールバック | Photoshop UXP / Krita / ORA |
 | `Inpainter` | Noop(inpaint_tasks.json 生成のみ) | Inpainting API / ローカルモデル |

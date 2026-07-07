@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { api } from '../api/client'
 import { useJobStore } from '../stores/jobStore'
 import { usePartsStore } from '../stores/partsStore'
 import { useProjectStore } from '../stores/projectStore'
@@ -35,6 +36,10 @@ export function InterviewPage() {
   const [prefs, setPrefs] = useState<UserPreferences>(DEFAULT_PREFS)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [analyzers, setAnalyzers] = useState<
+    { name: string; label: string; available: boolean; reason: string }[]
+  >([])
+  const [analyzer, setAnalyzer] = useState('mock')
 
   useEffect(() => {
     if (id && current?.project_id !== id) {
@@ -42,6 +47,7 @@ export function InterviewPage() {
     } else if (current) {
       setPrefs(current.preferences)
     }
+    void api.listAnalyzers().then(setAnalyzers).catch(() => setAnalyzers([]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
@@ -55,7 +61,8 @@ export function InterviewPage() {
     try {
       await savePreferences(prefs)
       log('ヒアリング回答を保存しました')
-      await analyze(id)
+      log(`AI解析を実行中です(${analyzer})...`)
+      await analyze(id, analyzer)
       log('AI解析(パーツ設計)が完了しました')
       navigate(`/projects/${id}/parts`)
     } catch (e) {
@@ -168,6 +175,34 @@ export function InterviewPage() {
           checked={prefs.expression_variants}
           onChange={(v) => set('expression_variants', v)}
         />
+
+        {analyzers.length > 0 && (
+          <div>
+            <Label>AI解析エンジン</Label>
+            <div className="space-y-1">
+              {analyzers.map((a) => (
+                <label
+                  key={a.name}
+                  className={`flex items-center gap-2 text-sm ${
+                    a.available ? '' : 'opacity-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="analyzer"
+                    checked={analyzer === a.name}
+                    disabled={!a.available}
+                    onChange={() => setAnalyzer(a.name)}
+                  />
+                  <span>{a.label}</span>
+                  {!a.available && (
+                    <span className="text-xs text-neutral-500">({a.reason})</span>
+                  )}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {error && <p className="mt-6 text-sm text-red-400">{error}</p>}
