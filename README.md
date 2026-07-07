@@ -14,9 +14,9 @@
 4. パーツ一覧編集(ツリー / bbox のキャンバス編集 / z_order / グループ)
 5. セグメンテーション — アルファ・GrabCut・矩形の簡易切り抜き(SAM2 は差し替え可能な設計)
 6. マスクのブラシ修正(追加/消し・Undo/Redo・膨張/収縮/穴埋め/ノイズ除去/ぼかし)
-7. レイヤーPNG生成(塗り足し膨張 + 透明フチ対策)
+7. レイヤーPNG生成(塗り足し膨張 + 透明フチ対策)+ **欠損補完(最近傍フィル)**
 8. 合成プレビューと元画像との差分表示
-9. ルールベース品質チェック(11種・100点スコアリング)
+9. ルールベース品質チェック(11種・100点スコアリング)+ **自動修正(auto-fix)**
 10. **PSD 出力**(グループ階層 / RLE圧縮 / psd-tools による再読込検証付き)
     - 失敗時は layers.zip + Photoshop JSX スクリプトへ自動フォールバック
 11. リギング設計書(`rigging_plan.md`)の生成
@@ -121,7 +121,7 @@ outputs/projects/{id}/  +  SQLite(一覧・ジョブ)
 | `CharacterAnalyzer` | MockAnalyzer(標準テンプレート)+ **ClaudeAnalyzer(実装済)** | GPT / Gemini / ローカルVLM |
 | `Segmenter` | Mock / ManualBox(アルファ+GrabCut)+ **Sam2Segmenter(実装済)** | 外部API |
 | `PsdExporter` | 自前PSDライター + JSXフォールバック | Photoshop UXP / Krita / ORA |
-| `Inpainter` | Noop(inpaint_tasks.json 生成のみ) | Inpainting API / ローカルモデル |
+| `Inpainter` | **最近傍フィル(実装済)**+ inpaint_tasks.json | Inpainting API / ローカルモデル |
 
 AI プロンプトは `apps/api/app/prompts/*.md` に集約(実装へのハードコード禁止)。
 スキーマは Pydantic が唯一の定義元で、`apps/api/scripts/export_schemas.py` が

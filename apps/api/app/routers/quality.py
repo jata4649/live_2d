@@ -14,6 +14,12 @@ def check(project_id: str) -> QualityReport:
     return quality_service.run_quality_check(project_id)
 
 
+@router.post("/autofix")
+def autofix(project_id: str) -> dict:
+    applied, report = quality_service.apply_autofix(project_id)
+    return {"applied": applied, "report": report.model_dump()}
+
+
 @router.get("/report", response_model=QualityReport)
 def report(project_id: str) -> QualityReport:
     result = quality_service.load_report(project_id)

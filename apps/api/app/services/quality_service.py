@@ -56,6 +56,73 @@ def run_quality_check(project_id: str) -> QualityReport:
     return report
 
 
+def apply_autofix(project_id: str) -> tuple[list[dict], QualityReport]:
+    """auto_fix_available な issue に自動修正を適用し、再チェック結果を返す。
+
+    対応する修正:
+    - EDGE_ARTIFACT: マスクを1px膨張 + 1pxぼかし → レイヤー再生成
+    - INSUFFICIENT_BLEED: overlap_bleed_px を 4 に引き上げ → レイヤー再生成
+    - Z_ORDER_ANOMALY: 後ろ髪より手前の z_order に引き上げ
+    """
+    from app.models.segmentation import RefinementParams
+    from app.services import layer_service, mask_service
+    from app.services.project_service import save_parts
+
+    report = load_report(project_id) or run_quality_check(project_id)
+    plan = load_parts(project_id)
+    parts_by_id = {p.id: p for p in plan.parts}
+    back_hair_max = max(
+        (p.z_order for p in plan.parts
+         if p.part_type == PartType.hair and "back" in p.id),
+        default=0,
+    )
+
+    applied: list[dict] = []
+    plan_dirty = False
+    for issue in report.issues:
+        if not issue.auto_fix_available or not issue.part_id:
+            continue
+        part = parts_by_id.get(issue.part_id)
+        if part is None:
+            continue
+        try:
+            if issue.code == IssueCode.EDGE_ARTIFACT:
+                mask_service.refine_mask(
+                    project_id, part.id,
+                    RefinementParams(
+                        remove_small_noise=False, fill_holes=False,
+                        smooth_edges=False, dilate_px=1, feather_px=1,
+                    ),
+                )
+                layer_service.generate_layer(project_id, part)
+                action = "マスクを1px膨張し境界をぼかしてレイヤーを再生成しました"
+            elif issue.code == IssueCode.INSUFFICIENT_BLEED:
+                part.processing.overlap_bleed_px = max(
+                    4, part.processing.overlap_bleed_px
+                )
+                plan_dirty = True
+                layer_service.generate_layer(project_id, part)
+                action = "塗り足しを4pxに引き上げてレイヤーを再生成しました"
+            elif issue.code == IssueCode.Z_ORDER_ANOMALY:
+                part.z_order = back_hair_max + 10
+                plan_dirty = True
+                action = f"z_order を {part.z_order} に引き上げました"
+            else:
+                continue
+            applied.append({
+                "part_id": part.id, "code": issue.code.value, "action": action,
+            })
+        except Exception as e:  # 1件の失敗で全体を止めない
+            applied.append({
+                "part_id": part.id, "code": issue.code.value,
+                "action": f"修正に失敗しました: {e}",
+            })
+
+    if plan_dirty:
+        save_parts(project_id, plan)
+    return applied, run_quality_check(project_id)
+
+
 def load_report(project_id: str) -> QualityReport | None:
     paths = ProjectPaths(project_id)
     if not paths.quality_report_json.exists():

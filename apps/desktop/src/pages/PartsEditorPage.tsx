@@ -74,6 +74,18 @@ export function PartsEditorPage() {
     log(`品質チェック完了: ${r.overall_score}点 / issue ${r.issues.length}件`)
   }
 
+  const runInpaint = async () => {
+    await save()
+    await api.inpaintPlan(id)
+    const { results } = await api.inpaintRun(id)
+    const done = results.filter((r) => r.status === 'done')
+    done.forEach((r) =>
+      log(`補完: ${r.target_part_id} ← ${r.occluder_part_id} の下 ${r.region_px}px`),
+    )
+    log(`欠損補完完了: ${done.length}件実行 / ${results.length - done.length}件スキップ`)
+    bumpMaskVersion()
+  }
+
   const addEmptyPart = () => {
     const n = (plan?.parts.length ?? 0) + 1
     const w = current.source_image.width
@@ -121,6 +133,13 @@ export function PartsEditorPage() {
         </button>
         <button className="btn" onClick={() => void runQualityCheck()}>
           品質チェック
+        </button>
+        <button
+          className="btn"
+          title="髪の下の額など、動かすと見える領域を簡易補完します"
+          onClick={() => void runInpaint()}
+        >
+          欠損補完(簡易)
         </button>
         <button className="btn" onClick={addEmptyPart}>
           + パーツ追加
