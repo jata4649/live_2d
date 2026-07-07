@@ -38,14 +38,31 @@ _predictor_cache: dict[str, Any] = {}
 
 
 def _load_predictor(model_id: str, device: str) -> Any:
-    key = f"{model_id}@{device}"
+    """予測器をロードする。
+
+    - 既定: Hugging Face Hub から from_pretrained(model_id)
+    - ALS_SAM2_CHECKPOINT が設定されていればローカルの .pt を使用
+      (HF に到達できないネットワーク制限環境向け。config は ALS_SAM2_CONFIG)
+    """
+    checkpoint = os.environ.get("ALS_SAM2_CHECKPOINT", "")
+    key = f"{checkpoint or model_id}@{device}"
     if key not in _predictor_cache:
         from sam2.sam2_image_predictor import SAM2ImagePredictor
 
-        logger.info("SAM2 モデルをロード中: %s (device=%s)", model_id, device)
-        _predictor_cache[key] = SAM2ImagePredictor.from_pretrained(
-            model_id, device=device
-        )
+        if checkpoint:
+            from sam2.build_sam import build_sam2
+
+            config = os.environ.get(
+                "ALS_SAM2_CONFIG", "configs/sam2.1/sam2.1_hiera_t.yaml"
+            )
+            logger.info("SAM2 をローカル checkpoint からロード中: %s", checkpoint)
+            model = build_sam2(config, checkpoint, device=device)
+            _predictor_cache[key] = SAM2ImagePredictor(model)
+        else:
+            logger.info("SAM2 モデルをロード中: %s (device=%s)", model_id, device)
+            _predictor_cache[key] = SAM2ImagePredictor.from_pretrained(
+                model_id, device=device
+            )
     return _predictor_cache[key]
 
 

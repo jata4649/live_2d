@@ -93,6 +93,8 @@ pip install "git+https://github.com/facebookresearch/sam2.git"
 - モデルは初回実行時に Hugging Face Hub から自動ダウンロード
   (既定: `facebook/sam2-hiera-tiny`、`ALS_SAM2_MODEL` で変更可)
 - デバイスは `ALS_SAM2_DEVICE`(既定 `cpu`、GPU があれば `cuda`)
+- HF に到達できない環境ではローカルの checkpoint を使用可能:
+  `ALS_SAM2_CHECKPOINT=/path/to/sam2.1_hiera_tiny.pt`(config は `ALS_SAM2_CONFIG`)
 - 可用性は `GET /api/v1/segmenters` で確認できます
 
 ## Cubism Editor への読み込み
