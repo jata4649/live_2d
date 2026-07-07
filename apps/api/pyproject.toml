@@ -18,6 +18,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "httpx>=0.27"]
 ai = ["anthropic>=0.116"]
+# SAM2 は PyPI 未公開のため GitHub から:
+#   pip install torch && pip install "git+https://github.com/facebookresearch/sam2.git"
+sam2 = ["torch>=2.3.1"]
 
 [tool.pytest.ini_options]
 testpaths = ["app/tests"]

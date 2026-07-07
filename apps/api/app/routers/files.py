@@ -34,6 +34,14 @@ def get_analyzers() -> list[dict]:
     return list_analyzers()
 
 
+@router.get("/segmenters")
+def get_segmenters() -> list[dict]:
+    """利用可能なセグメンテーション手法の一覧(UI セレクタ用)。"""
+    from app.segmentation.registry import list_segmenters
+
+    return list_segmenters()
+
+
 @router.get("/jobs/{job_id}", response_model=Job)
 def get_job(job_id: str) -> Job:
     job = job_repo.get(job_id)
