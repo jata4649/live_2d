@@ -68,8 +68,12 @@ export const api = {
     }),
 
   // --- Analysis ---
-  analyze: (id: string) =>
-    request<PartsPlan>(`/projects/${id}/analyze`, json({ analyzer: 'mock' })),
+  listAnalyzers: () =>
+    request<{ name: string; label: string; available: boolean; reason: string }[]>(
+      '/analyzers',
+    ),
+  analyze: (id: string, analyzer = 'mock') =>
+    request<PartsPlan>(`/projects/${id}/analyze`, json({ analyzer })),
   getParts: (id: string) => request<PartsPlan>(`/projects/${id}/parts`),
   putParts: (id: string, plan: PartsPlan) =>
     request<PartsPlan>(`/projects/${id}/parts`, { ...json(plan), method: 'PUT' }),

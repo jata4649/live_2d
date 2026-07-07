@@ -26,6 +26,7 @@ from app.routers import (
     quality,
     segmentation,
 )
+from app.ai.claude_analyzer import AnalyzerUnavailableError
 from app.services.export_service import ExportBlockedError
 from app.services.image_service import InvalidImageError
 from app.services.mask_service import MaskError
@@ -96,6 +97,13 @@ def handle_mask_error(request: Request, exc: MaskError) -> JSONResponse:
 @app.exception_handler(ExportBlockedError)
 def handle_export_blocked(request: Request, exc: ExportBlockedError) -> JSONResponse:
     return _error(409, "EXPORT_BLOCKED", str(exc))
+
+
+@app.exception_handler(AnalyzerUnavailableError)
+def handle_analyzer_unavailable(
+    request: Request, exc: AnalyzerUnavailableError
+) -> JSONResponse:
+    return _error(503, "ANALYZER_UNAVAILABLE", str(exc))
 
 
 @app.exception_handler(ValueError)
