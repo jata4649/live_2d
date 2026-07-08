@@ -1,8 +1,21 @@
-"""セグメンテーション実行(単体・一括)。"""
+"""セグメンテーション実行(単体・一括)。
+
+大画像対策の2段階処理(docs/08 リスクR3):
+- セグメンテーション自体は内部処理用の縮小版(working.png)で実行し、
+  プロンプト(bbox / points)を縮小座標へ換算、結果マスクをフル解像度へ拡大する
+- レイヤー生成・マスク編集・PSD出力は従来どおりフル解像度
+- 元画像が作業サイズ以下の場合や ALS_SEGMENT_ON_WORKING=0 の場合は従来どおり
+"""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Callable, Optional
 
+import cv2
+import numpy as np
+from PIL import Image
+
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.paths import ProjectPaths
 from app.image_processing import masks as mask_ops
@@ -18,6 +31,62 @@ from app.services.image_service import load_normalized_rgba
 from app.services.project_service import load_parts, load_project, save_project
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class SegmentationContext:
+    """1回の実行で共有する画像コンテキスト。"""
+    image: np.ndarray          # セグメンテーションに使う画像(RGBA)
+    scale: float               # image / フル解像度 の比率(<= 1.0)
+    full_size: tuple[int, int]  # (width, height) フル解像度
+
+
+def load_context(project_id: str) -> SegmentationContext:
+    paths = ProjectPaths(project_id)
+    project = load_project(project_id)
+    full_w = project.source_image.width
+    full_h = project.source_image.height
+
+    if settings.segment_on_working and paths.working_image.exists():
+        with Image.open(paths.working_image) as img:
+            arr = np.asarray(img.convert("RGBA")).copy()
+        if arr.shape[1] < full_w:
+            return SegmentationContext(
+                image=arr, scale=arr.shape[1] / full_w, full_size=(full_w, full_h)
+            )
+    return SegmentationContext(
+        image=load_normalized_rgba(project_id), scale=1.0,
+        full_size=(full_w, full_h),
+    )
+
+
+def scale_task(task: SegmentationTask, scale: float) -> SegmentationTask:
+    """プロンプト座標を縮小画像の座標系へ換算したコピーを返す。"""
+    if scale == 1.0:
+        return task
+    scaled = task.model_copy(deep=True)
+    if scaled.bbox:
+        x, y, w, h = scaled.bbox
+        scaled.bbox = [
+            round(x * scale), round(y * scale),
+            max(1, round(w * scale)), max(1, round(h * scale)),
+        ]
+    scaled.positive_points = [
+        [round(px * scale), round(py * scale)] for px, py in scaled.positive_points
+    ]
+    scaled.negative_points = [
+        [round(px * scale), round(py * scale)] for px, py in scaled.negative_points
+    ]
+    return scaled
+
+
+def upscale_mask(mask: np.ndarray, full_size: tuple[int, int]) -> np.ndarray:
+    """マスクをフル解像度へ拡大する(線形補間 → 二値化で境界を滑らかに)。"""
+    w, h = full_size
+    if mask.shape[:2] == (h, w):
+        return mask
+    resized = cv2.resize(mask, (w, h), interpolation=cv2.INTER_LINEAR)
+    return np.where(resized > 127, 255, 0).astype(np.uint8)
 
 
 def load_tasks(project_id: str) -> SegmentationTaskList:
@@ -38,12 +107,19 @@ def save_tasks(project_id: str, tasks: SegmentationTaskList) -> None:
     )
 
 
-def run_single(project_id: str, task: SegmentationTask) -> list[str]:
-    """1タスク実行。マスクを保存し警告リストを返す。"""
-    image = load_normalized_rgba(project_id)
-    result = run_task(image, task)
+def run_single(
+    project_id: str,
+    task: SegmentationTask,
+    ctx: Optional[SegmentationContext] = None,
+) -> list[str]:
+    """1タスク実行。マスクをフル解像度で保存し警告リストを返す。"""
+    if ctx is None:
+        ctx = load_context(project_id)
+
+    result = run_task(ctx.image, scale_task(task, ctx.scale))
+    mask = upscale_mask(result.mask, ctx.full_size)
     mask = mask_ops.apply_refinement(
-        result.mask,
+        mask,
         remove_noise=task.refinement.remove_small_noise,
         holes=task.refinement.fill_holes,
         smooth=task.refinement.smooth_edges,
@@ -53,8 +129,8 @@ def run_single(project_id: str, task: SegmentationTask) -> list[str]:
     )
     mask_service.save_mask(project_id, task.part_id, mask)
     logger.info(
-        "セグメンテーション完了: %s/%s method=%s conf=%s",
-        project_id, task.part_id, result.method_used, result.confidence,
+        "セグメンテーション完了: %s/%s method=%s conf=%s scale=%.2f",
+        project_id, task.part_id, result.method_used, result.confidence, ctx.scale,
     )
     return result.warnings
 
@@ -76,6 +152,7 @@ def run_all(
 ) -> dict[str, list[str]]:
     """全タスク実行。part_id -> warnings の辞書を返す。"""
     tasks = load_tasks(project_id)
+    ctx = load_context(project_id)  # 画像は一度だけロードして共有する
     results: dict[str, list[str]] = {}
     total = len(tasks.tasks) or 1
     for i, task in enumerate(tasks.tasks):
@@ -83,7 +160,7 @@ def run_all(
             progress_cb(i / total, f"{task.part_id} を処理中")
         task.status = TaskStatus.running
         try:
-            results[task.part_id] = run_single(project_id, task)
+            results[task.part_id] = run_single(project_id, task, ctx=ctx)
             task.status = TaskStatus.done
         except Exception as e:
             task.status = TaskStatus.failed
