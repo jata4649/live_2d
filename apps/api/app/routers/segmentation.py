@@ -68,6 +68,14 @@ async def put_mask(project_id: str, part_id: str, request: Request) -> dict:
     return {"mask_path": rel}
 
 
+@router.post("/masks/{part_id}/mirror")
+def mirror_mask(project_id: str, part_id: str) -> dict:
+    """マスクを左右反転して相方パーツ(_l ↔ _r)へコピーする。"""
+    from app.services.mirror_service import mirror_to_twin
+
+    return mirror_to_twin(project_id, part_id).model_dump()
+
+
 @router.post("/masks/{part_id}/refine")
 def refine_mask(project_id: str, part_id: str, params: RefinementParams) -> dict:
     rel = mask_service.refine_mask(project_id, part_id, params)

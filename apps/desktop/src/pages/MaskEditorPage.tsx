@@ -11,10 +11,14 @@ import { usePartsStore } from '../stores/partsStore'
 import { useProjectStore } from '../stores/projectStore'
 
 interface Stroke {
+  tool: 'brush' | 'lasso'
   mode: 'add' | 'erase'
   size: number
+  hardness: number // 0.1〜1.0(1.0 = ハードエッジ)。lasso では未使用
   points: { x: number; y: number }[]
 }
+
+type Tool = 'add' | 'erase' | 'lasso-add' | 'lasso-erase' | 'pan'
 
 export function MaskEditorPage() {
   const { id, partId } = useParams<{ id: string; partId: string }>()
@@ -29,8 +33,9 @@ export function MaskEditorPage() {
   const baseImageRef = useRef<HTMLImageElement | null>(null)
   const initialMaskRef = useRef<HTMLImageElement | null>(null)
 
-  const [tool, setTool] = useState<'add' | 'erase' | 'pan'>('add')
+  const [tool, setTool] = useState<Tool>('add')
   const [brushSize, setBrushSize] = useState(24)
+  const [hardness, setHardness] = useState(100) // %
   const [showMask, setShowMask] = useState(true)
   const [baseOpacity, setBaseOpacity] = useState(1)
   const [view, setView] = useState({ scale: 0.5, x: 0, y: 0 })
@@ -143,6 +148,18 @@ export function MaskEditorPage() {
       ctx.globalCompositeOperation = 'source-over'
       ctx.globalAlpha = 1
     }
+    // 投げ縄のプレビュー(ドラッグ中のみ)
+    const drawing = drawingRef.current
+    if (drawing?.tool === 'lasso' && drawing.points.length > 1) {
+      ctx.strokeStyle = drawing.mode === 'add' ? '#4ade80' : '#f87171'
+      ctx.lineWidth = 1.5 / view.scale
+      ctx.setLineDash([6 / view.scale, 4 / view.scale])
+      ctx.beginPath()
+      ctx.moveTo(drawing.points[0].x, drawing.points[0].y)
+      for (const p of drawing.points) ctx.lineTo(p.x, p.y)
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
     ctx.restore()
   }, [view, showMask, baseOpacity, width, height])
 
@@ -171,7 +188,29 @@ export function MaskEditorPage() {
       return
     }
     const p = toImageCoords(e)
-    drawingRef.current = { mode: tool, size: brushSize, points: [p] }
+    if (tool === 'lasso-add' || tool === 'lasso-erase') {
+      drawingRef.current = {
+        tool: 'lasso',
+        mode: tool === 'lasso-add' ? 'add' : 'erase',
+        size: 0,
+        hardness: 1,
+        points: [p],
+      }
+      return
+    }
+    const stroke: Stroke = {
+      tool: 'brush',
+      mode: tool === 'add' ? 'add' : 'erase',
+      size: brushSize,
+      hardness: hardness / 100,
+      points: [p],
+    }
+    drawingRef.current = stroke
+    const ctx = maskCanvasRef.current?.getContext('2d')
+    if (ctx) {
+      applyStroke(ctx, { ...stroke, points: [p] }) // 始点を即スタンプ
+      render()
+    }
   }
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -182,6 +221,10 @@ export function MaskEditorPage() {
     const stroke = drawingRef.current
     if (!stroke || !maskCanvasRef.current) return
     stroke.points.push(toImageCoords(e))
+    if (stroke.tool === 'lasso') {
+      render() // プレビューのみ(確定は pointerup)
+      return
+    }
     const ctx = maskCanvasRef.current.getContext('2d')!
     applyStroke(ctx, {
       ...stroke,
@@ -192,12 +235,22 @@ export function MaskEditorPage() {
 
   const onPointerUp = () => {
     panRef.current = null
-    if (drawingRef.current) {
-      setStrokes((s) => [...s, drawingRef.current!])
-      setRedoStack([])
-      setDirty(true)
-      drawingRef.current = null
+    const stroke = drawingRef.current
+    if (!stroke) return
+    if (stroke.tool === 'lasso' && maskCanvasRef.current) {
+      if (stroke.points.length >= 3) {
+        applyStroke(maskCanvasRef.current.getContext('2d')!, stroke)
+      }
     }
+    drawingRef.current = null
+    if (stroke.tool === 'lasso' && stroke.points.length < 3) {
+      render() // プレビュー線を消すだけ
+      return
+    }
+    setStrokes((s) => [...s, stroke])
+    setRedoStack([])
+    setDirty(true)
+    render()
   }
 
   const onWheel = (e: React.WheelEvent) => {
@@ -306,6 +359,8 @@ export function MaskEditorPage() {
             [
               ['add', '追加ブラシ'],
               ['erase', '消しブラシ'],
+              ['lasso-add', '投げ縄+'],
+              ['lasso-erase', '投げ縄−'],
               ['pan', '移動'],
             ] as const
           ).map(([t, label]) => (
@@ -326,6 +381,16 @@ export function MaskEditorPage() {
             max={200}
             value={brushSize}
             onChange={(e) => setBrushSize(Number(e.target.value))}
+          />
+        </label>
+        <label className="flex items-center gap-1" title="100%でハードエッジ、下げるとぼけたブラシになります">
+          硬さ {hardness}%
+          <input
+            type="range"
+            min={10}
+            max={100}
+            value={hardness}
+            onChange={(e) => setHardness(Number(e.target.value))}
           />
         </label>
         <button className="btn" onClick={undo} disabled={!strokes.length}>
@@ -380,20 +445,62 @@ export function MaskEditorPage() {
 
 function applyStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   ctx.globalCompositeOperation = 'source-over'
-  ctx.strokeStyle = stroke.mode === 'add' ? 'white' : 'black'
-  ctx.fillStyle = ctx.strokeStyle
-  ctx.lineWidth = stroke.size
-  ctx.lineCap = 'round'
-  ctx.lineJoin = 'round'
+  const color = stroke.mode === 'add' ? 'white' : 'black'
   const pts = stroke.points
-  if (pts.length === 1) {
+
+  if (stroke.tool === 'lasso') {
+    if (pts.length < 3) return
+    ctx.fillStyle = color
     ctx.beginPath()
-    ctx.arc(pts[0].x, pts[0].y, stroke.size / 2, 0, Math.PI * 2)
+    ctx.moveTo(pts[0].x, pts[0].y)
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+    ctx.closePath()
     ctx.fill()
     return
   }
-  ctx.beginPath()
-  ctx.moveTo(pts[0].x, pts[0].y)
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
-  ctx.stroke()
+
+  if (stroke.hardness >= 0.99) {
+    // ハードブラシ: 従来どおりの線描画
+    ctx.strokeStyle = color
+    ctx.fillStyle = color
+    ctx.lineWidth = stroke.size
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    if (pts.length === 1) {
+      ctx.beginPath()
+      ctx.arc(pts[0].x, pts[0].y, stroke.size / 2, 0, Math.PI * 2)
+      ctx.fill()
+      return
+    }
+    ctx.beginPath()
+    ctx.moveTo(pts[0].x, pts[0].y)
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+    ctx.stroke()
+    return
+  }
+
+  // ソフトブラシ: 放射状グラデーションのスタンプを軌跡に沿って敷き詰める
+  const radius = stroke.size / 2
+  const spacing = Math.max(1, stroke.size / 6)
+  const stamp = (x: number, y: number) => {
+    const g = ctx.createRadialGradient(x, y, radius * stroke.hardness, x, y, radius)
+    const rgb = stroke.mode === 'add' ? '255,255,255' : '0,0,0'
+    g.addColorStop(0, `rgba(${rgb},1)`)
+    g.addColorStop(1, `rgba(${rgb},0)`)
+    ctx.fillStyle = g
+    ctx.beginPath()
+    ctx.arc(x, y, radius, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  stamp(pts[0].x, pts[0].y)
+  for (let i = 1; i < pts.length; i++) {
+    const p0 = pts[i - 1]
+    const p1 = pts[i]
+    const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y)
+    const steps = Math.max(1, Math.floor(dist / spacing))
+    for (let s = 1; s <= steps; s++) {
+      const t = s / steps
+      stamp(p0.x + (p1.x - p0.x) * t, p0.y + (p1.y - p0.y) * t)
+    }
+  }
 }

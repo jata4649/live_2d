@@ -62,6 +62,32 @@ export function PartDetailPanel() {
     }
   }
 
+  const twinId = (() => {
+    const tokens = part.id.split('_')
+    for (let i = tokens.length - 1; i >= 0; i--) {
+      if (tokens[i] === 'l') return [...tokens.slice(0, i), 'r', ...tokens.slice(i + 1)].join('_')
+      if (tokens[i] === 'r') return [...tokens.slice(0, i), 'l', ...tokens.slice(i + 1)].join('_')
+    }
+    return null
+  })()
+  const twinExists = twinId != null && plan!.parts.some((p) => p.id === twinId)
+
+  const runMirror = async () => {
+    if (!twinId) return
+    try {
+      await save()
+      const res = await api.mirrorMask(projectId, part.id)
+      log(
+        `ミラーコピー完了: ${part.id} → ${res.twin_part_id}` +
+          (res.bbox_updated ? '(bboxも更新)' : ''),
+      )
+      bumpMaskVersion()
+      await usePartsStore.getState().load(projectId) // サーバー側でbboxが更新されるため再読込
+    } catch (e) {
+      log(`ミラーコピーに失敗: ${e instanceof Error ? e.message : e}`, 'error')
+    }
+  }
+
   const runLayer = async () => {
     try {
       await save()
@@ -210,6 +236,15 @@ export function PartDetailPanel() {
         <button className="btn w-full" onClick={() => void runLayer()}>
           レイヤーPNG生成
         </button>
+        {twinExists && (
+          <button
+            className="btn w-full"
+            title="このマスクを左右反転して相方パーツへコピーします(bboxも更新)"
+            onClick={() => void runMirror()}
+          >
+            {twinId} へミラーコピー
+          </button>
+        )}
         <button
           className="w-full rounded border border-red-900 px-2 py-1.5 text-red-400 hover:bg-red-950"
           onClick={() => {
