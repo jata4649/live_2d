@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import struct
 from dataclasses import dataclass, field
+
+from app.exporters.layer_tree import GroupNode, build_tree
 from pathlib import Path
 
 import numpy as np
@@ -72,37 +74,10 @@ class _FlatLayer:
     lsct: int | None = None  # 1=開いたフォルダ, 2=閉じたフォルダ, 3=境界
 
 
-@dataclass
-class _GroupNode:
-    name: str
-    children: list = field(default_factory=list)  # _GroupNode | dict(entry)
-
-
-def _build_tree(entries: list[dict]) -> _GroupNode:
-    """group パス("Hair/Front")からツリーを構築する。
-
-    entries は上(手前)から順。グループの順序は初出順 = z 順の近似。
-    """
-    root = _GroupNode(name="")
-    nodes: dict[str, _GroupNode] = {"": root}
-    for entry in entries:
-        parent = root
-        path = ""
-        for seg in [s for s in (entry.get("group") or "").split("/") if s]:
-            path = f"{path}/{seg}" if path else seg
-            if path not in nodes:
-                node = _GroupNode(name=seg)
-                nodes[path] = node
-                parent.children.append(node)
-            parent = nodes[path]
-        parent.children.append(entry)
-    return root
-
-
-def _flatten(node: _GroupNode, out: list[_FlatLayer]) -> None:
+def _flatten(node: GroupNode, out: list[_FlatLayer]) -> None:
     """ツリーを上から順の _FlatLayer 列に変換する。"""
     for child in node.children:
-        if isinstance(child, _GroupNode):
+        if isinstance(child, GroupNode):
             out.append(_FlatLayer(name=child.name, lsct=1))
             _flatten(child, out)
             out.append(_FlatLayer(name="</Layer group>", lsct=3))
@@ -207,7 +182,7 @@ def write_psd(
     entries: 上(手前)から順の
       {"name": str, "group": "Hair/Front", "visible": bool, "rgba": ndarray(H,W,4)}
     """
-    tree = _build_tree(entries)
+    tree = build_tree(entries)
     flat_top_down: list[_FlatLayer] = []
     _flatten(tree, flat_top_down)
     file_order = list(reversed(flat_top_down))  # PSD は下から上に格納

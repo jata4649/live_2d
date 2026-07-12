@@ -159,6 +159,8 @@ export const api = {
     request<ExportResult>(`/projects/${id}/export/psd`, json({ force })),
   exportLayersZip: (id: string, force = false) =>
     request<ExportResult>(`/projects/${id}/export/layers-zip`, json({ force })),
+  exportOra: (id: string, force = false) =>
+    request<ExportResult>(`/projects/${id}/export/ora`, json({ force })),
   exportRiggingPlan: (id: string) =>
     request<{ rigging_plan_path: string }>(`/projects/${id}/export/rigging-plan`, {
       method: 'POST',

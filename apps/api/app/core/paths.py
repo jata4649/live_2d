@@ -113,6 +113,10 @@ class ProjectPaths:
         return self.exports_dir / "layers.zip"
 
     @property
+    def ora_export(self) -> Path:
+        return self.exports_dir / "live2d_import.ora"
+
+    @property
     def photoshop_script(self) -> Path:
         return self.exports_dir / "import_script.jsx"
 
