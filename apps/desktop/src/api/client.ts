@@ -98,6 +98,14 @@ export const api = {
       headers: { 'Content-Type': 'image/png' },
       body: png,
     }),
+  mirrorMask: (id: string, partId: string) =>
+    request<{
+      source_part_id: string
+      twin_part_id: string
+      mask_path: string
+      layer_path: string | null
+      bbox_updated: boolean
+    }>(`/projects/${id}/masks/${partId}/mirror`, { method: 'POST' }),
   refineMask: (
     id: string,
     partId: string,
