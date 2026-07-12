@@ -25,6 +25,11 @@ class Settings(BaseModel):
     max_upload_bytes: int = int(os.environ.get("ALS_MAX_UPLOAD_BYTES", str(64 * 1024 * 1024)))
     # 内部処理用の作業画像の長辺サイズ
     working_long_edge: int = int(os.environ.get("ALS_WORKING_LONG_EDGE", "2048"))
+    # セグメンテーションを作業サイズで実行し、マスクをフル解像度へ拡大する
+    # (大画像での速度・メモリ対策。docs/08 リスクR3)
+    segment_on_working: bool = os.environ.get("ALS_SEGMENT_ON_WORKING", "1") not in (
+        "0", "false", "False",
+    )
     # PSD出力前に品質スコアがこの値未満なら 409 を返す(force で無視可)
     export_min_score: int = int(os.environ.get("ALS_EXPORT_MIN_SCORE", "50"))
 
