@@ -24,6 +24,11 @@ def export_psd(project_id: str, req: ExportRequest | None = None) -> ExportResul
     return export_service.export_psd(project_id, force=req.force if req else False)
 
 
+@router.post("/ora", response_model=ExportResult)
+def export_ora(project_id: str, req: ExportRequest | None = None) -> ExportResult:
+    return export_service.export_ora(project_id, force=req.force if req else False)
+
+
 @router.post("/layers-zip", response_model=ExportResult)
 def export_layers_zip(project_id: str, req: ExportRequest | None = None) -> ExportResult:
     return export_service.export_layers_zip(

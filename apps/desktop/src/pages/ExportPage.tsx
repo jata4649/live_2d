@@ -129,6 +129,12 @@ export function ExportPage() {
           onClick={() => void run('ZIP出力', () => api.exportLayersZip(id, force || score >= 50))}
         />
         <ExportButton
+          label="OpenRaster (.ora)"
+          description="Krita / GIMP でそのまま開けるオープン形式"
+          busy={busy === 'ORA出力'}
+          onClick={() => void run('ORA出力', () => api.exportOra(id, force || score >= 50))}
+        />
+        <ExportButton
           label="リギング設計書"
           description="rigging_plan.md(推奨パラメータ / デフォーマ構成)"
           busy={busy === 'リギング設計書'}
@@ -166,6 +172,16 @@ export function ExportPage() {
               </a>
               <span className="ml-2 text-xs text-neutral-500">
                 Cubism Editor で「ファイル → 開く」から読み込めます
+              </span>
+            </li>
+          )}
+          {results.some((r) => r.ok && r.exporter === 'openraster') && (
+            <li>
+              <a className="link" href={exportFileUrl(id, 'live2d_import.ora')}>
+                🎨 live2d_import.ora
+              </a>
+              <span className="ml-2 text-xs text-neutral-500">
+                Krita / GIMP で開き、PSD として書き出すことも可能です
               </span>
             </li>
           )}

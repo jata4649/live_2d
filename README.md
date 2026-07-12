@@ -20,6 +20,7 @@
 10. **PSD 出力**(グループ階層 / RLE圧縮 / psd-tools による再読込検証付き)
     - 失敗時は layers.zip + Photoshop JSX スクリプトへ自動フォールバック
 11. リギング設計書(`rigging_plan.md`)の生成
+12. **OpenRaster (.ora) 出力** — Krita / GIMP でそのまま開けるオープン形式
 
 ## セットアップ
 
@@ -120,7 +121,7 @@ outputs/projects/{id}/  +  SQLite(一覧・ジョブ)
 |---|---|---|
 | `CharacterAnalyzer` | MockAnalyzer(標準テンプレート)+ **ClaudeAnalyzer(実装済)** | GPT / Gemini / ローカルVLM |
 | `Segmenter` | Mock / ManualBox(アルファ+GrabCut)+ **Sam2Segmenter(実装済)** | 外部API |
-| `PsdExporter` | 自前PSDライター + JSXフォールバック | Photoshop UXP / Krita / ORA |
+| `PsdExporter` | 自前PSDライター + JSXフォールバック + **OpenRaster/.ora(実装済)** | Photoshop UXP |
 | `Inpainter` | **最近傍フィル(実装済)**+ inpaint_tasks.json | Inpainting API / ローカルモデル |
 
 AI プロンプトは `apps/api/app/prompts/*.md` に集約(実装へのハードコード禁止)。

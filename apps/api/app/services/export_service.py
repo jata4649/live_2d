@@ -61,6 +61,19 @@ def export_psd(project_id: str, force: bool = False) -> ExportResult:
     return result
 
 
+def export_ora(project_id: str, force: bool = False) -> ExportResult:
+    """OpenRaster (.ora) 出力(Krita / GIMP 向け)。"""
+    from app.exporters.openraster_exporter import OpenRasterExporter
+
+    _check_quality_gate(project_id, force)
+    project = load_project(project_id)
+    parts = load_parts(project_id)
+    paths = ProjectPaths(project_id)
+    return OpenRasterExporter().export(
+        project, parts, paths.layers_dir, paths.ora_export
+    )
+
+
 def export_layers_zip(project_id: str, force: bool = False) -> ExportResult:
     _check_quality_gate(project_id, force)
     project = load_project(project_id)
