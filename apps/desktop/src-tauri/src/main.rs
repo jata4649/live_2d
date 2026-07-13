@@ -12,6 +12,8 @@
 use std::process::{Child, Command};
 use std::sync::Mutex;
 
+use tauri::Manager;
+
 struct Backend(Mutex<Option<Child>>);
 
 fn spawn_backend() -> Option<Child> {
@@ -35,7 +37,8 @@ fn main() {
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 let state: tauri::State<Backend> = app.state();
-                if let Some(mut child) = state.0.lock().unwrap().take() {
+                let child: Option<Child> = state.0.lock().unwrap().take();
+                if let Some(mut child) = child {
                     let _ = child.kill();
                 }
             }
