@@ -36,6 +36,11 @@ class Settings(BaseModel):
     )
     # PSD出力前に品質スコアがこの値未満なら 409 を返す(force で無視可)
     export_min_score: int = int(os.environ.get("ALS_EXPORT_MIN_SCORE", "50"))
+    # レイヤー生成時にマスク境界帯をガイデッドフィルタで連続アルファ化する
+    # (髪の毛先などのソフトエッジ化。docs/08 R4)
+    soft_edges: bool = os.environ.get("ALS_SOFT_EDGES", "1") not in (
+        "0", "false", "False",
+    )
 
     @property
     def projects_root(self) -> Path:

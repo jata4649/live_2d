@@ -164,6 +164,7 @@ class Project(BaseModel): project_id; name; created_at; updated_at; source_image
 | `EDGE_ARTIFACT` | 透明フチ・白フチ・黒フチ |
 | `PSD_CONSTRAINT_VIOLATION` | PSD制約違反(ビット深度・カラーモード等) |
 | `FILE_MISSING` | 参照ファイル欠落 |
+| `COLOR_CONTAMINATION` | 色統計ベースの混入検出(目のマスクに肌色が2割混入 等) |
 
 ## 5. inpaint_tasks.json — `InpaintTaskList`(MVPは生成のみ)
 

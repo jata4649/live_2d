@@ -12,7 +12,8 @@
         "INSUFFICIENT_BLEED",
         "EDGE_ARTIFACT",
         "PSD_CONSTRAINT_VIOLATION",
-        "FILE_MISSING"
+        "FILE_MISSING",
+        "COLOR_CONTAMINATION"
       ],
       "title": "IssueCode",
       "type": "string"

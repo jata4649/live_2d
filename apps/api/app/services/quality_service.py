@@ -27,6 +27,12 @@ _DIFF_RATIO_WARN = 0.005
 _DIFF_RATIO_HIGH = 0.05
 # 半透明境界の異常色比率の許容値
 _EDGE_ARTIFACT_RATIO = 0.30
+# 混入検出: マスク内で「背面パーツの色」に近いピクセルがこの比率を超えると警告
+_CONTAMINATION_RATIO = 0.20
+# 混入検出: 2パーツの代表色(Lab)がこの距離未満なら色で判別できないため判定しない
+_MIN_COLOR_SEPARATION = 25.0
+# 混入判定のマージン(自分の代表色よりこの距離以上「相手寄り」なら混入とみなす)
+_CONTAMINATION_MARGIN = 10.0
 
 
 def run_quality_check(project_id: str) -> QualityReport:
@@ -39,6 +45,7 @@ def run_quality_check(project_id: str) -> QualityReport:
     issues += _check_required_parts(plan)
     issues += _check_z_order(plan)
     issues += _check_files_and_layers(paths, plan)
+    issues += _check_color_contamination(project_id, plan)
     issues += _check_composite_diff(project_id, plan)
 
     score = max(0, 100 - sum(_PENALTY[i.severity] for i in issues))
@@ -255,6 +262,93 @@ def _check_files_and_layers(paths: ProjectPaths, plan: PartsPlan) -> list[Qualit
                 message=f"{p.name_jp} は補完が必要ですが塗り足しが {p.processing.overlap_bleed_px}px しかありません",
                 suggested_fix="overlap_bleed_px を 4 以上にしてください",
                 auto_fix_available=True,
+            ))
+    return issues
+
+
+def _check_color_contamination(project_id: str, plan: PartsPlan) -> list[QualityIssue]:
+    """色統計ベースの混入検出。
+
+    「目のマスクに肌色が2割混ざっている」のような切り抜きミスを、
+    パーツごとの代表色(マスク中心部の Lab 平均)との距離で検出する。
+
+    判定対象は「A の bbox 中心を含む、より大きく背面にある B」との組のみ
+    (目 vs 顔、口 vs 顔など)。下地パーツが上のパーツ領域を広めに含むのは
+    Live2D 的に正しいため、背面側パーツ(B)は判定しない。
+    """
+    import cv2
+
+    from app.services.image_service import load_normalized_rgba
+
+    paths = ProjectPaths(project_id)
+    candidates = [
+        p for p in plan.parts
+        if p.visible and p.segmentation.bbox and paths.mask_png(p.id).exists()
+    ]
+    if len(candidates) < 2:
+        return []
+
+    rgba = load_normalized_rgba(project_id)
+    lab = cv2.cvtColor(
+        (rgba[:, :, :3].astype(np.float32) / 255.0), cv2.COLOR_RGB2Lab
+    )
+    valid = rgba[:, :, 3] > 8
+
+    # 各パーツのマスクと代表色(境界の影響を避けるため中心部を侵食で取る)
+    kernel = np.ones((3, 3), np.uint8)
+    stats: dict[str, tuple[np.ndarray, np.ndarray]] = {}  # id -> (mask, mean_lab)
+    for p in candidates:
+        with Image.open(paths.mask_png(p.id)) as img:
+            mask = (np.asarray(img.convert("L")) > 127) & valid
+        core = cv2.erode(mask.astype(np.uint8), kernel, iterations=3).astype(bool)
+        if core.sum() < 100:
+            core = mask
+        if core.sum() < 100:
+            continue
+        stats[p.id] = (mask, lab[core].mean(axis=0))
+
+    issues: list[QualityIssue] = []
+    parts_by_id = {p.id: p for p in plan.parts}
+    for a in candidates:
+        if a.id not in stats:
+            continue
+        ax, ay, aw, ah = a.segmentation.bbox
+        cx, cy = ax + aw // 2, ay + ah // 2
+        mask_a, mean_a = stats[a.id]
+        px: np.ndarray | None = None
+        dist_own: np.ndarray | None = None
+        worst: tuple[float, str] | None = None
+        for b in candidates:
+            if b.id == a.id or b.id not in stats:
+                continue
+            bx, by, bw, bh = b.segmentation.bbox
+            # B は「A を含む・十分大きい・背面」のパーツのみ(目 vs 顔 等)
+            if not (bx <= cx <= bx + bw and by <= cy <= by + bh):
+                continue
+            if bw * bh < 2 * aw * ah or b.z_order >= a.z_order:
+                continue
+            _, mean_b = stats[b.id]
+            if float(np.linalg.norm(mean_a - mean_b)) < _MIN_COLOR_SEPARATION:
+                continue  # 色が近すぎて判別できない
+            if dist_own is None or px is None:
+                px = lab[mask_a]
+                dist_own = np.linalg.norm(px - mean_a, axis=1)
+            dist_b = np.linalg.norm(px - mean_b, axis=1)
+            ratio = float(
+                (dist_b + _CONTAMINATION_MARGIN < dist_own).mean()
+            )
+            if ratio > _CONTAMINATION_RATIO and (worst is None or ratio > worst[0]):
+                worst = (ratio, b.id)
+        if worst is not None:
+            b_part = parts_by_id[worst[1]]
+            issues.append(QualityIssue(
+                severity=Severity.medium,
+                part_id=a.id,
+                code=IssueCode.COLOR_CONTAMINATION,
+                message=f"{a.name_jp} のマスクに {b_part.name_jp} の色が "
+                        f"{worst[0]:.0%} 混入している疑いがあります",
+                suggested_fix="背景ポイント(Alt+クリック)を混入箇所に追加して"
+                              "再セグメント、またはマスク編集で除去してください",
             ))
     return issues
 
