@@ -9,16 +9,19 @@ import { api, fileUrl, maskUrl } from '../api/client'
 import { useJobStore } from '../stores/jobStore'
 import { usePartsStore } from '../stores/partsStore'
 import { useProjectStore } from '../stores/projectStore'
+import { magicWandRegion, paintRegion } from '../utils/magicWand'
 
 interface Stroke {
-  tool: 'brush' | 'lasso'
+  tool: 'brush' | 'lasso' | 'wand'
   mode: 'add' | 'erase'
   size: number
-  hardness: number // 0.1〜1.0(1.0 = ハードエッジ)。lasso では未使用
-  points: { x: number; y: number }[]
+  hardness: number // 0.1〜1.0(1.0 = ハードエッジ)。lasso/wand では未使用
+  points: { x: number; y: number }[] // wand ではクリック点1つ
+  tolerance?: number // wand: 色の許容差
+  contiguous?: boolean // wand: 連結領域のみ
 }
 
-type Tool = 'add' | 'erase' | 'lasso-add' | 'lasso-erase' | 'pan'
+type Tool = 'add' | 'erase' | 'lasso-add' | 'lasso-erase' | 'wand-add' | 'wand-erase' | 'pan'
 
 export function MaskEditorPage() {
   const { id, partId } = useParams<{ id: string; partId: string }>()
@@ -36,6 +39,9 @@ export function MaskEditorPage() {
   const [tool, setTool] = useState<Tool>('add')
   const [brushSize, setBrushSize] = useState(24)
   const [hardness, setHardness] = useState(100) // %
+  const [tolerance, setTolerance] = useState(30) // マジックワンドの色許容差
+  const [contiguous, setContiguous] = useState(true)
+  const baseDataRef = useRef<ImageData | null>(null) // ワンド用の元画像ピクセル
   const [showMask, setShowMask] = useState(true)
   const [baseOpacity, setBaseOpacity] = useState(1)
   const [view, setView] = useState({ scale: 0.5, x: 0, y: 0 })
@@ -60,6 +66,13 @@ export function MaskEditorPage() {
     const base = new Image()
     base.onload = () => {
       baseImageRef.current = base
+      // マジックワンド用に元画像のピクセルをキャッシュ
+      const bc = document.createElement('canvas')
+      bc.width = width
+      bc.height = height
+      const bctx = bc.getContext('2d')!
+      bctx.drawImage(base, 0, 0)
+      baseDataRef.current = bctx.getImageData(0, 0, width, height)
       const maskImg = new Image()
       const initMask = () => {
         const mc = document.createElement('canvas')
@@ -108,7 +121,7 @@ export function MaskEditorPage() {
       ctx.fillStyle = 'black'
       ctx.fillRect(0, 0, mc.width, mc.height)
       if (initialMaskRef.current) ctx.drawImage(initialMaskRef.current, 0, 0)
-      for (const s of strokeList) applyStroke(ctx, s)
+      for (const s of strokeList) applyStroke(ctx, s, baseDataRef.current)
     },
     [],
   )
@@ -188,6 +201,27 @@ export function MaskEditorPage() {
       return
     }
     const p = toImageCoords(e)
+    if (tool === 'wand-add' || tool === 'wand-erase') {
+      // ワンドはクリック一発で確定(ドラッグなし)
+      const stroke: Stroke = {
+        tool: 'wand',
+        mode: tool === 'wand-add' ? 'add' : 'erase',
+        size: 0,
+        hardness: 1,
+        points: [p],
+        tolerance,
+        contiguous,
+      }
+      const ctx = maskCanvasRef.current?.getContext('2d')
+      if (ctx) {
+        applyStroke(ctx, stroke, baseDataRef.current)
+        render()
+      }
+      setStrokes((s) => [...s, stroke])
+      setRedoStack([])
+      setDirty(true)
+      return
+    }
     if (tool === 'lasso-add' || tool === 'lasso-erase') {
       drawingRef.current = {
         tool: 'lasso',
@@ -361,6 +395,8 @@ export function MaskEditorPage() {
               ['erase', '消しブラシ'],
               ['lasso-add', '投げ縄+'],
               ['lasso-erase', '投げ縄−'],
+              ['wand-add', 'ワンド+'],
+              ['wand-erase', 'ワンド−'],
               ['pan', '移動'],
             ] as const
           ).map(([t, label]) => (
@@ -393,6 +429,28 @@ export function MaskEditorPage() {
             onChange={(e) => setHardness(Number(e.target.value))}
           />
         </label>
+        {(tool === 'wand-add' || tool === 'wand-erase') && (
+          <>
+            <label className="flex items-center gap-1" title="クリック点の色との許容差。大きいほど広く選択されます">
+              許容差 {tolerance}
+              <input
+                type="range"
+                min={4}
+                max={120}
+                value={tolerance}
+                onChange={(e) => setTolerance(Number(e.target.value))}
+              />
+            </label>
+            <label className="flex items-center gap-1" title="ONでクリック点と連結する領域のみ、OFFで画像全体の近似色を選択">
+              <input
+                type="checkbox"
+                checked={contiguous}
+                onChange={(e) => setContiguous(e.target.checked)}
+              />
+              連結のみ
+            </label>
+          </>
+        )}
         <button className="btn" onClick={undo} disabled={!strokes.length}>
           ↶ Undo
         </button>
@@ -443,10 +501,29 @@ export function MaskEditorPage() {
   )
 }
 
-function applyStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
+function applyStroke(
+  ctx: CanvasRenderingContext2D,
+  stroke: Stroke,
+  baseData?: ImageData | null,
+) {
   ctx.globalCompositeOperation = 'source-over'
   const color = stroke.mode === 'add' ? 'white' : 'black'
   const pts = stroke.points
+
+  if (stroke.tool === 'wand') {
+    if (!baseData) return
+    const region = magicWandRegion(
+      baseData.data,
+      baseData.width,
+      baseData.height,
+      pts[0].x,
+      pts[0].y,
+      stroke.tolerance ?? 30,
+      stroke.contiguous ?? true,
+    )
+    paintRegion(ctx, region, baseData.width, baseData.height, stroke.mode)
+    return
+  }
 
   if (stroke.tool === 'lasso') {
     if (pts.length < 3) return

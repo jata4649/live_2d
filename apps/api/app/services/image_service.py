@@ -43,6 +43,25 @@ def store_and_normalize(project_id: str, data: bytes) -> Project:
     img.save(paths.original_image, format="PNG")
 
     normalized, working, meta = normalize(data, settings.working_long_edge)
+
+    # 背景つき画像(アルファなし)は、rembg が使えれば人物アルファを生成する。
+    # アルファが付くと高精度経路(アルファ切り抜き・色分離・人物範囲フィット)が
+    # そのまま有効になる。rembg 未導入・失敗時は従来動作。
+    if not meta.has_alpha and settings.bg_removal:
+        from app.image_processing.bg_removal import (
+            bg_removal_available,
+            remove_background,
+        )
+        from app.image_processing.normalize import make_working_copy
+
+        if bg_removal_available()[0]:
+            cut = remove_background(np.asarray(normalized.convert("RGBA")))
+            if cut is not None:
+                normalized = Image.fromarray(cut, "RGBA")
+                working = make_working_copy(normalized, settings.working_long_edge)
+                meta.has_alpha = True
+                logger.info("背景除去でアルファを生成しました: %s", project_id)
+
     normalized.save(paths.normalized_image, format="PNG")
     working.save(paths.working_image, format="PNG")
 
