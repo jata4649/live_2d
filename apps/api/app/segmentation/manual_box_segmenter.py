@@ -17,6 +17,13 @@ from app.models.segmentation import SegmentationTask
 from app.segmentation.base import MaskResult, Segmenter
 
 
+# 色ベース分離(GrabCut mask init)を適用する bbox 面積の上限(画像比)。
+# 目・口・虹彩など小さな内部パーツのみが対象。顔・胴体などの大きな
+# ベースパーツは中央シードの色に引きずられて縮むため、従来のアルファ
+# 切り抜きを維持する(下地パーツは広めに取るのが Live2D 的にも正解)。
+COLOR_SEPARATION_MAX_AREA_RATIO = 0.05
+
+
 class ManualBoxSegmenter(Segmenter):
     name = "manual_box"
 
@@ -43,14 +50,32 @@ class ManualBoxSegmenter(Segmenter):
 
         alpha = image[:, :, 3]
         box_alpha = alpha[y : y + bh, x : x + bw]
+        opaque_ratio = float((box_alpha > 8).mean())
+
+        image_has_alpha = bool((alpha < 250).any())
+        is_small = bw * bh <= COLOR_SEPARATION_MAX_AREA_RATIO * w * h
 
         mask = np.zeros((h, w), np.uint8)
-        if (box_alpha < 250).any():
-            # 透過情報あり: アルファをそのまま前景とみなす(最も信頼できる)
+        if image_has_alpha and opaque_ratio < 0.85:
+            # 透過境界が bbox 内にある(髪の房・アホ毛など輪郭系パーツ):
+            # アルファ切り抜きが最も信頼できる
             mask[y : y + bh, x : x + bw] = np.where(box_alpha > 8, 255, 0).astype(np.uint8)
             confidence = 0.6
             method = "alpha"
+        elif image_has_alpha and is_small:
+            # bbox 内がほぼ不透明な小パーツ(顔の上の目・口・虹彩など):
+            # アルファでは周囲と分離できないため、色ベース(GrabCut)で分離する
+            confidence, method = self._grabcut_color_separation(
+                image, mask, (x, y, bw, bh), warnings
+            )
+        elif image_has_alpha:
+            # bbox 内がほぼ不透明な大パーツ(顔・胴体などのベースパーツ):
+            # 下地は広めに取るのが正解のため bbox 全体(∩ アルファ)を採用する
+            mask[y : y + bh, x : x + bw] = np.where(box_alpha > 8, 255, 0).astype(np.uint8)
+            confidence = 0.5
+            method = "alpha_rect"
         else:
+            # 完全不透明画像(アルファ情報なし): 従来どおり矩形初期化 GrabCut
             confidence, method = self._grabcut(image, mask, (x, y, bw, bh), warnings)
 
         if mask[y : y + bh, x : x + bw].sum() == 0:
@@ -61,6 +86,43 @@ class ManualBoxSegmenter(Segmenter):
 
         return MaskResult(mask=mask, confidence=confidence,
                           method_used=f"{self.name}:{method}", warnings=warnings)
+
+    def _grabcut_color_separation(
+        self,
+        image: np.ndarray,
+        mask_out: np.ndarray,
+        rect: tuple[int, int, int, int],
+        warnings: list[str],
+    ) -> tuple[float, str]:
+        """マスク初期化つき GrabCut。
+
+        bbox 中央部を前景候補、bbox 内周辺を背景候補、bbox 外と透明部を
+        確定背景として色分布で分離する。目・口・虹彩など「不透明領域の
+        内部にあるパーツ」を周囲の肌・髪から切り分けるための経路。
+        """
+        x, y, bw, bh = rect
+        try:
+            bgr = cv2.cvtColor(image, cv2.COLOR_RGBA2BGR)
+            gc_mask = np.full(image.shape[:2], cv2.GC_BGD, np.uint8)
+            gc_mask[y : y + bh, x : x + bw] = cv2.GC_PR_BGD
+            # 中央 50% を前景候補にする
+            cx0 = x + bw // 4
+            cy0 = y + bh // 4
+            gc_mask[cy0 : cy0 + bh // 2, cx0 : cx0 + bw // 2] = cv2.GC_PR_FGD
+            gc_mask[image[:, :, 3] <= 8] = cv2.GC_BGD
+
+            bgd, fgd = np.zeros((1, 65), np.float64), np.zeros((1, 65), np.float64)
+            cv2.grabCut(bgr, gc_mask, None, bgd, fgd, 4, cv2.GC_INIT_WITH_MASK)
+            fg = (
+                (gc_mask == cv2.GC_FGD) | (gc_mask == cv2.GC_PR_FGD)
+            ).astype(np.uint8) * 255
+            clipped = np.zeros_like(fg)
+            clipped[y : y + bh, x : x + bw] = fg[y : y + bh, x : x + bw]
+            mask_out[:] = clipped
+            return 0.5, "grabcut_color"
+        except Exception as e:
+            warnings.append(f"色分離 GrabCut が失敗しました: {e}")
+            return 0.2, "rect"
 
     def _grabcut(
         self,
