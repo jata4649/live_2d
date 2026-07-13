@@ -5,7 +5,7 @@ import { useJobStore } from '../stores/jobStore'
 import { useProjectStore } from '../stores/projectStore'
 import type { PreviewResult } from '../types'
 
-type Mode = 'composite' | 'original' | 'difference' | 'blink'
+type Mode = 'composite' | 'original' | 'difference' | 'blink' | 'motion'
 
 export function PreviewPage() {
   const { id } = useParams<{ id: string }>()
@@ -54,9 +54,14 @@ export function PreviewPage() {
   const originalUrl = fileUrl(id, 'source/normalized.png', 1)
   const compositeUrl = fileUrl(id, 'previews/composite_preview.png', version)
   const diffUrl = fileUrl(id, 'previews/difference_preview.png', version)
+  const motionUrl = fileUrl(id, 'previews/motion_check.png', version)
 
   const shown =
-    mode === 'original' || (mode === 'blink' && blinkOn) ? originalUrl : compositeUrl
+    mode === 'motion'
+      ? motionUrl
+      : mode === 'original' || (mode === 'blink' && blinkOn)
+        ? originalUrl
+        : compositeUrl
 
   return (
     <div className="flex h-full flex-col">
@@ -68,6 +73,7 @@ export function PreviewPage() {
               ['original', '元画像'],
               ['difference', '差分'],
               ['blink', 'A/B比較'],
+              ['motion', 'モーション'],
             ] as const
           ).map(([m, label]) => (
             <button
@@ -82,7 +88,12 @@ export function PreviewPage() {
         <button className="btn" onClick={() => void generate()} disabled={busy}>
           {busy ? '生成中...' : '再生成'}
         </button>
-        {result && (
+        {mode === 'motion' && (
+          <span className="ml-4 text-neutral-400">
+            マゼンタ = 揺れものを動かすと欠ける領域(パーツ編集画面の「モーションチェック」で生成)
+          </span>
+        )}
+        {result && mode !== 'motion' && (
           <span className="ml-4 text-neutral-400">
             使用レイヤー: {result.layers_used} / 差分ピクセル: {result.diff_pixel_count}(
             {(result.diff_pixel_ratio * 100).toFixed(2)}%)

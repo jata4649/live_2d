@@ -86,6 +86,30 @@ export function PartsEditorPage() {
     bumpMaskVersion()
   }
 
+  const runMotionCheck = async () => {
+    await save()
+    try {
+      const r = await api.motionCheck(id)
+      if (r.entries.length === 0) {
+        log(
+          `モーションチェック完了: 穴なし(可動 ${r.checked_parts} パーツ / 振幅 ${r.amplitude_px}px)`,
+        )
+      } else {
+        r.entries.slice(0, 5).forEach((e) =>
+          log(
+            `穴: ${e.part_id} を (${e.shift[0]}, ${e.shift[1]}) 動かすと ${e.hole_px}px 欠けます`,
+            'error',
+          ),
+        )
+        log(
+          `モーションチェック完了: 穴 ${r.entries.length}件。プレビュー画面の「モーション」表示、または「欠損補完(簡易)」で対処してください`,
+        )
+      }
+    } catch (e) {
+      log(`モーションチェックに失敗: ${e instanceof Error ? e.message : e}`, 'error')
+    }
+  }
+
   const addEmptyPart = () => {
     const n = (plan?.parts.length ?? 0) + 1
     const w = current.source_image.width
@@ -140,6 +164,13 @@ export function PartsEditorPage() {
           onClick={() => void runInpaint()}
         >
           欠損補完(簡易)
+        </button>
+        <button
+          className="btn"
+          title="髪・装飾を疑似的に揺らし、動かしたとき欠ける領域(穴)を検出します(要レイヤー生成)"
+          onClick={() => void runMotionCheck()}
+        >
+          モーションチェック
         </button>
         <button className="btn" onClick={addEmptyPart}>
           + パーツ追加

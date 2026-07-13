@@ -14,6 +14,14 @@ def check(project_id: str) -> QualityReport:
     return quality_service.run_quality_check(project_id)
 
 
+@router.post("/motion-check")
+def motion_check(project_id: str) -> dict:
+    """疑似モーションチェック: 可動パーツを揺らして穴(欠け)を検出する。"""
+    from app.services.motion_check_service import run_motion_check
+
+    return run_motion_check(project_id).model_dump()
+
+
 @router.post("/autofix")
 def autofix(project_id: str) -> dict:
     applied, report = quality_service.apply_autofix(project_id)

@@ -66,7 +66,7 @@ class ManualBoxSegmenter(Segmenter):
             # bbox 内がほぼ不透明な小パーツ(顔の上の目・口・虹彩など):
             # アルファでは周囲と分離できないため、色ベース(GrabCut)で分離する
             confidence, method = self._grabcut_color_separation(
-                image, mask, (x, y, bw, bh), warnings
+                image, mask, (x, y, bw, bh), task, warnings
             )
         elif image_has_alpha:
             # bbox 内がほぼ不透明な大パーツ(顔・胴体などのベースパーツ):
@@ -92,6 +92,7 @@ class ManualBoxSegmenter(Segmenter):
         image: np.ndarray,
         mask_out: np.ndarray,
         rect: tuple[int, int, int, int],
+        task: SegmentationTask,
         warnings: list[str],
     ) -> tuple[float, str]:
         """マスク初期化つき GrabCut。
@@ -109,6 +110,21 @@ class ManualBoxSegmenter(Segmenter):
             cx0 = x + bw // 4
             cy0 = y + bh // 4
             gc_mask[cy0 : cy0 + bh // 2, cx0 : cx0 + bw // 2] = cv2.GC_PR_FGD
+            gc_mask[image[:, :, 3] <= 8] = cv2.GC_BGD
+            # ポイントプロンプトを前景/背景候補として反映する。
+            # 確定(GC_FGD/GC_BGD)ではなく候補(PR)にとどめることで、
+            # 自動生成ポイントが実パーツから外れていても致命傷にならない
+            h_img, w_img = image.shape[:2]
+            r = max(2, min(bw, bh) // 20)
+            for px, py in task.positive_points:
+                if 0 <= px < w_img and 0 <= py < h_img:
+                    cv2.circle(gc_mask, (int(px), int(py)), r,
+                               int(cv2.GC_PR_FGD), -1)
+            for px, py in task.negative_points:
+                if 0 <= px < w_img and 0 <= py < h_img:
+                    cv2.circle(gc_mask, (int(px), int(py)), r,
+                               int(cv2.GC_PR_BGD), -1)
+            # 透明部は常に確定背景
             gc_mask[image[:, :, 3] <= 8] = cv2.GC_BGD
 
             bgd, fgd = np.zeros((1, 65), np.float64), np.zeros((1, 65), np.float64)
