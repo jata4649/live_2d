@@ -25,6 +25,10 @@ class Settings(BaseModel):
     max_upload_bytes: int = int(os.environ.get("ALS_MAX_UPLOAD_BYTES", str(64 * 1024 * 1024)))
     # 内部処理用の作業画像の長辺サイズ
     working_long_edge: int = int(os.environ.get("ALS_WORKING_LONG_EDGE", "2048"))
+    # テンプレートのbboxを、画像から検出した人物範囲へフィットさせる
+    fit_template: bool = os.environ.get("ALS_FIT_TEMPLATE", "1") not in (
+        "0", "false", "False",
+    )
     # セグメンテーションを作業サイズで実行し、マスクをフル解像度へ拡大する
     # (大画像での速度・メモリ対策。docs/08 リスクR3)
     segment_on_working: bool = os.environ.get("ALS_SEGMENT_ON_WORKING", "1") not in (

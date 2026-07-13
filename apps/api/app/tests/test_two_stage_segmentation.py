@@ -82,6 +82,7 @@ def test_segmentation_runs_on_working_and_saves_full_mask(client, monkeypatch):
     ))
     assert mask.size == (512, 768)  # フル解像度で保存されている
 
-    # マスクが顔の bbox 付近を覆っている(頭部の楕円中心)
+    # マスクが顔の肌領域を覆っている(髪と口の間の肌。色分離により
+    # 髪のピクセルは顔マスクから除外されるようになった)
     arr = np.asarray(mask.convert("L"))
-    assert arr[160, 256] > 127
+    assert arr[200, 256] > 127

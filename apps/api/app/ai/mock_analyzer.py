@@ -68,10 +68,42 @@ class MockAnalyzer(CharacterAnalyzer):
     def analyze_character_image(
         self, image_path: Path, user_preferences: UserPreferences
     ) -> PartsPlan:
+        import numpy as np
+
+        from app.core.config import settings
+
         with Image.open(image_path) as img:
             width, height = img.size
+            rgba = np.asarray(img.convert("RGBA"))
         parts = build_standard_parts(user_preferences, width, height)
+
+        # テンプレートは「人物がキャンバス全体を占める」前提の比率のため、
+        # 実際の人物範囲を検出して bbox を再マッピングする(精度向上)
+        if settings.fit_template:
+            self._fit_to_character(parts, rgba)
         return PartsPlan(version="1.0", parts=parts)
+
+    @staticmethod
+    def _fit_to_character(parts, rgba) -> None:
+        from app.image_processing.character_bounds import character_bbox, fit_bbox
+
+        target = character_bbox(rgba)
+        if target is None:
+            return
+        boxes = [p.segmentation.bbox for p in parts if p.segmentation.bbox]
+        if not boxes:
+            return
+        # テンプレート自身が想定している人物範囲(全パーツbboxの外接矩形)
+        x0 = min(b[0] for b in boxes)
+        y0 = min(b[1] for b in boxes)
+        x1 = max(b[0] + b[2] for b in boxes)
+        y1 = max(b[1] + b[3] for b in boxes)
+        template_extent = [x0, y0, x1 - x0, y1 - y0]
+        for p in parts:
+            if p.segmentation.bbox:
+                p.segmentation.bbox = fit_bbox(
+                    p.segmentation.bbox, template_extent, target
+                )
 
     def generate_questions(self, user_preferences: UserPreferences) -> QuestionList:
         return QuestionList(questions=list(_STATIC_QUESTIONS))
