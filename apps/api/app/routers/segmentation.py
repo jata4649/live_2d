@@ -84,6 +84,13 @@ def mirror_mask(project_id: str, part_id: str) -> dict:
     return mirror_to_twin(project_id, part_id).model_dump()
 
 
+@router.post("/masks/{part_id}/sync-bbox")
+def sync_bbox(project_id: str, part_id: str) -> dict:
+    """bbox を生成済みマスクの実範囲(+余白4px)へ吸着させる。"""
+    bbox = mask_service.sync_bbox_to_mask(project_id, part_id)
+    return {"part_id": part_id, "bbox": bbox}
+
+
 @router.post("/masks/{part_id}/refine")
 def refine_mask(project_id: str, part_id: str, params: RefinementParams) -> dict:
     rel = mask_service.refine_mask(project_id, part_id, params)

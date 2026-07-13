@@ -5,7 +5,7 @@ import { useJobStore } from '../stores/jobStore'
 import { useProjectStore } from '../stores/projectStore'
 import type { PreviewResult } from '../types'
 
-type Mode = 'composite' | 'original' | 'difference' | 'blink' | 'motion'
+type Mode = 'composite' | 'original' | 'difference' | 'blink' | 'motion' | 'motion_anim'
 
 export function PreviewPage() {
   const { id } = useParams<{ id: string }>()
@@ -55,13 +55,16 @@ export function PreviewPage() {
   const compositeUrl = fileUrl(id, 'previews/composite_preview.png', version)
   const diffUrl = fileUrl(id, 'previews/difference_preview.png', version)
   const motionUrl = fileUrl(id, 'previews/motion_check.png', version)
+  const motionGifUrl = fileUrl(id, 'previews/motion_preview.gif', version)
 
   const shown =
     mode === 'motion'
       ? motionUrl
-      : mode === 'original' || (mode === 'blink' && blinkOn)
-        ? originalUrl
-        : compositeUrl
+      : mode === 'motion_anim'
+        ? motionGifUrl
+        : mode === 'original' || (mode === 'blink' && blinkOn)
+          ? originalUrl
+          : compositeUrl
 
   return (
     <div className="flex h-full flex-col">
@@ -74,6 +77,7 @@ export function PreviewPage() {
               ['difference', '差分'],
               ['blink', 'A/B比較'],
               ['motion', 'モーション'],
+              ['motion_anim', 'モーション再生'],
             ] as const
           ).map(([m, label]) => (
             <button
@@ -93,7 +97,12 @@ export function PreviewPage() {
             マゼンタ = 揺れものを動かすと欠ける領域(パーツ編集画面の「モーションチェック」で生成)
           </span>
         )}
-        {result && mode !== 'motion' && (
+        {mode === 'motion_anim' && (
+          <span className="ml-4 text-neutral-400">
+            疑似モーションの再生(髪・装飾をサイン波で揺らしたGIF。モーションチェック実行時に生成)
+          </span>
+        )}
+        {result && mode !== 'motion' && mode !== 'motion_anim' && (
           <span className="ml-4 text-neutral-400">
             使用レイヤー: {result.layers_used} / 差分ピクセル: {result.diff_pixel_count}(
             {(result.diff_pixel_ratio * 100).toFixed(2)}%)

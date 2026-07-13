@@ -13,7 +13,9 @@
         "EDGE_ARTIFACT",
         "PSD_CONSTRAINT_VIOLATION",
         "FILE_MISSING",
-        "COLOR_CONTAMINATION"
+        "COLOR_CONTAMINATION",
+        "MASK_FRAGMENTED",
+        "MASK_TOO_SMALL"
       ],
       "title": "IssueCode",
       "type": "string"

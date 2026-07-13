@@ -55,6 +55,25 @@ export function PartsEditorPage() {
 
   if (!id || !current) return <p className="p-8 text-neutral-400">読み込み中...</p>
 
+  const runAutoPipeline = async () => {
+    await save()
+    await runJob(() => api.autoPipeline(id), '全自動仕上げ')
+    try {
+      const s = await api.pipelineSummary(id)
+      s.steps.forEach((st) => log(`${st.step}: ${st.detail}`))
+      log(
+        `全自動仕上げ完了: 最終スコア ${s.final_score} 点 / ` +
+          `モーション穴 ${s.motion_holes_after} 件 / 未割当 ${s.orphan_px_after}px`,
+      )
+      const r = await api.getQualityReport(id)
+      setReport(r)
+    } catch {
+      /* サマリ未生成(失敗時)はジョブ側のログに任せる */
+    }
+    bumpMaskVersion()
+    await refreshMasks()
+  }
+
   const runAllSegmentation = async () => {
     await save()
     await runJob(() => api.runSegmentationAll(id), 'セグメンテーション一括実行')
@@ -188,6 +207,13 @@ export function PartsEditorPage() {
     <div className="flex h-full flex-col">
       {/* ツールバー */}
       <div className="flex items-center gap-2 border-b border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs">
+        <button
+          className="rounded bg-indigo-600 px-3 py-1 font-medium hover:bg-indigo-500"
+          title="セグメント → レイヤー → 未割当整合 → 欠損補完 → モーション穴補完 → 品質チェック → 自動修正 を一括実行します"
+          onClick={() => void runAutoPipeline()}
+        >
+          ★ 全自動仕上げ
+        </button>
         <button className="btn" onClick={() => void runAllSegmentation()}>
           全マスク一括生成
         </button>

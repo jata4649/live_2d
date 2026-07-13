@@ -41,6 +41,7 @@ class MotionCheckReport(BaseModel):
     checked_parts: int
     entries: list[MotionHole] = Field(default_factory=list)
     preview_path: str = ""
+    preview_gif_path: str = ""
 
 
 def _is_movable(part: Part) -> bool:
@@ -136,11 +137,16 @@ def run_motion_check(project_id: str) -> MotionCheckReport:
     preview = paths.previews_dir / "motion_check.png"
     Image.fromarray(overlay, "RGBA").save(preview, format="PNG")
 
+    # 揺れの再生確認用アニメGIF(可動パーツをサイン波で揺らす)
+    gif = paths.previews_dir / "motion_preview.gif"
+    _save_motion_gif(layers, size, amp, gif)
+
     report = MotionCheckReport(
         amplitude_px=amp,
         checked_parts=checked,
         entries=sorted(entries, key=lambda e: -e.hole_px),
         preview_path=paths.rel(preview),
+        preview_gif_path=paths.rel(gif),
     )
     (paths.json_dir / "motion_check.json").write_text(
         report.model_dump_json(indent=2), encoding="utf-8"
@@ -150,6 +156,44 @@ def run_motion_check(project_id: str) -> MotionCheckReport:
         project_id, checked, len(entries),
     )
     return report
+
+
+def _save_motion_gif(
+    layers: list[tuple[Part, np.ndarray]],
+    size: tuple[int, int],
+    amp: int,
+    out_path,
+    frames: int = 8,
+    duration_ms: int = 120,
+) -> None:
+    """可動パーツをサイン波で揺らしたアニメGIFを書き出す。
+
+    隣り合う可動パーツが同期しすぎないよう、パーツごとに位相をずらす。
+    GIF は透過に弱いため白背景へ合成する。
+    """
+    import math
+
+    movable_idx = [i for i, (p, _) in enumerate(layers) if _is_movable(p)]
+    imgs = []
+    for t in range(frames):
+        theta = 2.0 * math.pi * t / frames
+        moved = []
+        for i, (_, arr) in enumerate(layers):
+            if i in movable_idx:
+                phase = 0.9 * movable_idx.index(i)
+                dx = round(amp * math.sin(theta + phase))
+                dy = round((amp // 3) * math.sin(2 * theta + phase))
+                moved.append(_shift_layer(arr, dx, dy))
+            else:
+                moved.append(arr)
+        comp = _composite(moved, size)
+        frame = Image.new("RGB", size, (255, 255, 255))
+        frame.paste(Image.fromarray(comp, "RGBA"), (0, 0), Image.fromarray(comp, "RGBA"))
+        imgs.append(frame)
+    imgs[0].save(
+        out_path, format="GIF", save_all=True, append_images=imgs[1:],
+        duration=duration_ms, loop=0,
+    )
 
 
 # ---------------------------------------------------------------- 穴の自動補完
