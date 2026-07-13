@@ -68,6 +68,14 @@ async def put_mask(project_id: str, part_id: str, request: Request) -> dict:
     return {"mask_path": rel}
 
 
+@router.post("/masks/resolve-orphans")
+def resolve_orphans(project_id: str) -> dict:
+    """どのマスクにも入っていない不透明ピクセルを最適なパーツへ編入する。"""
+    from app.services.ownership_service import resolve_orphans as _resolve
+
+    return _resolve(project_id).model_dump()
+
+
 @router.post("/masks/{part_id}/mirror")
 def mirror_mask(project_id: str, part_id: str) -> dict:
     """マスクを左右反転して相方パーツ(_l ↔ _r)へコピーする。"""

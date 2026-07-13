@@ -66,11 +66,12 @@ def _composite(layers: list[np.ndarray], size: tuple[int, int]) -> np.ndarray:
     return np.asarray(canvas)
 
 
-def run_motion_check(project_id: str) -> MotionCheckReport:
+def _load_check_layers(
+    project_id: str,
+) -> tuple[list[tuple[Part, np.ndarray]], tuple[int, int], float]:
+    """可視パーツのレイヤーを z 昇順でロードし、チェック解像度へ縮小する。"""
     paths = ProjectPaths(project_id)
     plan = load_parts(project_id)
-
-    # 可視パーツのレイヤーを z 昇順(背面から)でロードし、チェック解像度へ縮小
     ordered = [p for p in sorted(plan.parts, key=lambda p: p.z_order) if p.visible]
     layers: list[tuple[Part, np.ndarray]] = []
     scale = 1.0
@@ -90,6 +91,12 @@ def run_motion_check(project_id: str) -> MotionCheckReport:
             layers.append((part, np.asarray(img).copy()))
     if not layers or size is None:
         raise ValueError("レイヤーが未生成です。先にレイヤー生成を実行してください")
+    return layers, size, scale
+
+
+def run_motion_check(project_id: str) -> MotionCheckReport:
+    paths = ProjectPaths(project_id)
+    layers, size, _ = _load_check_layers(project_id)
 
     base = _composite([arr for _, arr in layers], size)
     base_opaque = base[:, :, 3] > 8
@@ -143,3 +150,126 @@ def run_motion_check(project_id: str) -> MotionCheckReport:
         project_id, checked, len(entries),
     )
     return report
+
+
+# ---------------------------------------------------------------- 穴の自動補完
+
+class MotionFill(BaseModel):
+    moved_part_id: str
+    target_part_id: str
+    filled_px: int  # フル解像度での補完ピクセル数
+
+
+class MotionFixReport(BaseModel):
+    fills: list[MotionFill] = Field(default_factory=list)
+    skipped: list[str] = Field(default_factory=list)
+    report_after: MotionCheckReport
+
+
+def fix_motion_holes(project_id: str) -> MotionFixReport:
+    """モーションチェックで見つかった穴を、下のレイヤーへ塗って埋める。
+
+    可動パーツごとに全シフトの穴を合算し、フル解像度へ拡大した領域を
+    「そのパーツより背面で、穴に最も広く隣接するレイヤー」へ
+    OpenCV inpaint(TELEA)で焼き込む。マスクは変更しない
+    (欠損補完と同じ「レイヤーへの焼き込み」方針)。
+    """
+    import cv2
+
+    paths = ProjectPaths(project_id)
+    layers, size, scale = _load_check_layers(project_id)
+
+    base = _composite([arr for _, arr in layers], size)
+    base_opaque = base[:, :, 3] > 8
+    amp = max(4, round(size[0] * AMPLITUDE_RATIO))
+    shifts = [(amp, 0), (-amp, 0), (0, amp // 2)]
+
+    # 可動パーツごとの穴(チェック解像度)
+    holes_by_part: dict[str, np.ndarray] = {}
+    for idx, (part, _) in enumerate(layers):
+        if not _is_movable(part):
+            continue
+        accum = np.zeros(base_opaque.shape, bool)
+        for dx, dy in shifts:
+            moved = [
+                _shift_layer(arr, dx, dy) if i == idx else arr
+                for i, (_, arr) in enumerate(layers)
+            ]
+            comp = _composite(moved, size)
+            accum |= base_opaque & (comp[:, :, 3] <= 8)
+        if accum.any():
+            holes_by_part[part.id] = accum
+
+    fills: list[MotionFill] = []
+    skipped: list[str] = []
+    if holes_by_part:
+        # フル解像度のレイヤーを z 昇順でロード
+        full: dict[str, np.ndarray] = {}
+        order: list[Part] = [p for p, _ in layers]
+        full_size: tuple[int, int] | None = None
+        for part in order:
+            with Image.open(paths.layer_png(part.id)) as img:
+                arr = np.asarray(img.convert("RGBA")).copy()
+            full[part.id] = arr
+            full_size = (arr.shape[1], arr.shape[0])
+        assert full_size is not None
+        fw, fh = full_size
+        margin = max(2, round(1.0 / scale)) if scale < 1.0 else 2
+        kernel = np.ones((3, 3), np.uint8)
+
+        for idx, part in enumerate(order):
+            if part.id not in holes_by_part:
+                continue
+            hole = holes_by_part[part.id].astype(np.uint8) * 255
+            hole_full = cv2.resize(hole, (fw, fh), interpolation=cv2.INTER_NEAREST)
+            hole_full = cv2.dilate(hole_full, kernel, iterations=margin) > 127
+
+            # 補完先: このパーツより背面で、穴の周囲に最も広く接するレイヤー
+            ring = (
+                cv2.dilate(hole_full.astype(np.uint8), kernel, iterations=8) > 0
+            ) & ~hole_full
+            best_id: str | None = None
+            best_contact = 0
+            for lower in order[:idx]:
+                contact = int(((full[lower.id][:, :, 3] > 8) & ring).sum())
+                if contact > best_contact:
+                    best_contact = contact
+                    best_id = lower.id
+            if best_id is None or best_contact < 30:
+                skipped.append(
+                    f"{part.id}: 補完先レイヤーが見つかりませんでした"
+                )
+                continue
+
+            target = full[best_id]
+            region = hole_full & ~(target[:, :, 3] > 8)
+            if not region.any():
+                continue
+            # inpaint の「既知領域」に透明ピクセルの色ゴミが混ざらないよう、
+            # 領域近傍の透明部もまとめて未知として塗り、region のみ反映する
+            unknown = region | (
+                (cv2.dilate(region.astype(np.uint8), kernel, iterations=8) > 0)
+                & ~(target[:, :, 3] > 8)
+            )
+            bgr = cv2.cvtColor(target[:, :, :3], cv2.COLOR_RGB2BGR)
+            painted = cv2.inpaint(
+                bgr, unknown.astype(np.uint8) * 255, 5, cv2.INPAINT_TELEA
+            )
+            target[region, :3] = cv2.cvtColor(painted, cv2.COLOR_BGR2RGB)[region]
+            target[region, 3] = 255
+            Image.fromarray(target, "RGBA").save(
+                paths.layer_png(best_id), format="PNG"
+            )
+            fills.append(MotionFill(
+                moved_part_id=part.id,
+                target_part_id=best_id,
+                filled_px=int(region.sum()),
+            ))
+            logger.info(
+                "モーション穴補完: %s の下(%s)へ %dpx 焼き込み",
+                part.id, best_id, int(region.sum()),
+            )
+
+    return MotionFixReport(
+        fills=fills, skipped=skipped, report_after=run_motion_check(project_id)
+    )
