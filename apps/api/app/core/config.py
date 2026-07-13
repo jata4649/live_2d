@@ -41,6 +41,11 @@ class Settings(BaseModel):
     soft_edges: bool = os.environ.get("ALS_SOFT_EDGES", "1") not in (
         "0", "false", "False",
     )
+    # アルファのない画像(背景つきJPG等)に rembg で人物アルファを生成する
+    # (rembg 未導入なら自動で従来動作)
+    bg_removal: bool = os.environ.get("ALS_BG_REMOVAL", "1") not in (
+        "0", "false", "False",
+    )
 
     @property
     def projects_root(self) -> Path:
