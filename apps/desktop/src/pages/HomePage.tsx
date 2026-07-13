@@ -1,14 +1,18 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { fileUrl } from '../api/client'
+import { api, fileUrl } from '../api/client'
 import { useProjectStore } from '../stores/projectStore'
+
+type Env = Awaited<ReturnType<typeof api.getEnvironment>>
 
 export function HomePage() {
   const { list, loading, loadList, deleteProject, loadProject } = useProjectStore()
   const navigate = useNavigate()
+  const [env, setEnv] = useState<Env | null>(null)
 
   useEffect(() => {
     void loadList()
+    void api.getEnvironment().then(setEnv).catch(() => setEnv(null))
   }, [loadList])
 
   const openProject = async (id: string) => {
@@ -81,6 +85,67 @@ export function HomePage() {
           </div>
         ))}
       </div>
+
+      {env && (
+        <div className="mt-10 rounded-lg border border-neutral-700 bg-neutral-800/60 p-4 text-xs">
+          <div className="mb-2 text-sm font-bold">AI 環境ステータス</div>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1 md:grid-cols-4">
+            <StatusRow
+              ok={env.analyzers.find((a) => a.name === 'claude')?.available ?? false}
+              label="Claude 解析"
+              reason={env.analyzers.find((a) => a.name === 'claude')?.reason}
+            />
+            <StatusRow
+              ok={env.segmenters.find((s) => s.method === 'sam2_box')?.available ?? false}
+              label="SAM2 切り抜き"
+              reason={env.segmenters.find((s) => s.method === 'sam2_box')?.reason}
+            />
+            <StatusRow
+              ok={env.torch.cuda}
+              label={env.torch.cuda ? `GPU (${env.torch.device_name})` : 'GPU'}
+              reason={env.torch.installed ? 'CPUで実行します' : 'torch 未導入'}
+              optional
+            />
+            <StatusRow
+              ok={env.bg_removal.available}
+              label="背景除去 (JPG対応)"
+              reason={env.bg_removal.reason}
+            />
+          </div>
+          {env.hints.length > 0 && (
+            <div className="mt-3 space-y-1 border-t border-neutral-700 pt-2 text-neutral-400">
+              {env.hints.map((h, i) => (
+                <div key={i}>• {h}</div>
+              ))}
+            </div>
+          )}
+          <div className="mt-2 text-neutral-500">
+            Claude + SAM2 を有効にすると、パーツ設計と切り抜きが実画像ベースの高精度になります
+            (詳細はリポジトリの README「高精度セットアップ」)。
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StatusRow({
+  ok,
+  label,
+  reason,
+  optional,
+}: {
+  ok: boolean
+  label: string
+  reason?: string
+  optional?: boolean
+}) {
+  return (
+    <div className="flex items-center gap-1.5" title={ok ? '' : reason}>
+      <span className={ok ? 'text-green-400' : optional ? 'text-neutral-500' : 'text-amber-400'}>
+        {ok ? '✓' : optional ? '−' : '✗'}
+      </span>
+      <span className={ok ? '' : 'text-neutral-400'}>{label}</span>
     </div>
   )
 }

@@ -18,6 +18,7 @@ from app.core.logging import get_logger, setup_logging
 from app.db.database import init_db
 from app.routers import (
     analysis,
+    environment,
     export,
     files,
     image,
@@ -50,6 +51,7 @@ for router in (
     projects.router,
     image.router,
     analysis.router,
+    environment.router,
     segmentation.router,
     layers.router,
     pipeline.router,

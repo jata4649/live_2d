@@ -84,6 +84,10 @@ class AnalyzerUnavailableError(Exception):
 
 
 def claude_available() -> tuple[bool, str]:
+    try:
+        import anthropic  # noqa: F401
+    except ImportError:
+        return False, "anthropic パッケージが未インストールです(pip install anthropic)"
     if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"):
         return True, ""
     return False, "ANTHROPIC_API_KEY が設定されていません"

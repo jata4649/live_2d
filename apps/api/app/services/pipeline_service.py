@@ -64,8 +64,11 @@ def run_auto_pipeline(project_id: str, progress_cb: ProgressCb = None) -> Pipeli
     # 1. 解析(既存のパーツ設計があれば尊重する)
     prog(0.0, "解析")
     if not paths.parts_json.exists():
-        plan = analysis_service.analyze(project_id, "mock")
-        add("解析", f"標準テンプレートで {len(plan.parts)} パーツを設計しました")
+        from app.ai.mock_analyzer import get_analyzer
+
+        analyzer_name = get_analyzer("auto").name  # Claude が使えれば Claude
+        plan = analysis_service.analyze(project_id, analyzer_name)
+        add("解析", f"{analyzer_name} アナライザーで {len(plan.parts)} パーツを設計しました")
     else:
         add("解析", "既存のパーツ設計を使用します(再解析なし)")
 

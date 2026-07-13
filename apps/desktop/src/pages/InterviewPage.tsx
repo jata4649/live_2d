@@ -47,7 +47,16 @@ export function InterviewPage() {
     } else if (current) {
       setPrefs(current.preferences)
     }
-    void api.listAnalyzers().then(setAnalyzers).catch(() => setAnalyzers([]))
+    void api
+      .listAnalyzers()
+      .then((list) => {
+        setAnalyzers(list)
+        // Claude が使えるなら既定で選択(精度が段違いのため)
+        if (list.some((a) => a.name === 'claude' && a.available)) {
+          setAnalyzer('claude')
+        }
+      })
+      .catch(() => setAnalyzers([]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 

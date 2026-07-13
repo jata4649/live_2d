@@ -191,13 +191,18 @@ def auto_prompts(part, parts_plan: PartsPlan) -> tuple[list[list[int]], list[lis
 
 def get_analyzer(name: str = "mock") -> CharacterAnalyzer:
     """Analyzer レジストリ。gpt / gemini / ローカルVLM は将来ここに追加する。"""
+    if name == "auto":
+        # 使える中で最も精度が高いものを自動選択(Claude > mock)
+        from app.ai.claude_analyzer import claude_available
+
+        name = "claude" if claude_available()[0] else "mock"
     if name == "mock":
         return MockAnalyzer()
     if name == "claude":
         from app.ai.claude_analyzer import ClaudeAnalyzer
 
         return ClaudeAnalyzer()
-    raise ValueError(f"未対応の analyzer です: {name}(利用可能: mock, claude)")
+    raise ValueError(f"未対応の analyzer です: {name}(利用可能: auto, mock, claude)")
 
 
 def list_analyzers() -> list[dict]:
