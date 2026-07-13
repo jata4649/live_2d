@@ -98,6 +98,29 @@ pip install "git+https://github.com/facebookresearch/sam2.git"
   `ALS_SAM2_CHECKPOINT=/path/to/sam2.1_hiera_tiny.pt`(config は `ALS_SAM2_CONFIG`)
 - 可用性は `GET /api/v1/segmenters` で確認できます
 
+## デスクトップアプリ(Tauri・オプション)
+
+ブラウザ運用のままでも全機能が使えますが、Tauri でデスクトップアプリ化できます。
+
+前提: Rust ツールチェーン + OS ごとの WebView 依存
+(Linux: `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev` / macOS・Windows: 追加不要)
+
+```bash
+cd apps/desktop
+
+# 開発(uvicorn は別ターミナルで起動しておく)
+npm run tauri:dev
+
+# 配布用ビルド(API は http://127.0.0.1:8787 固定でバンドル)
+npm run tauri:build
+```
+
+- 環境変数 `ALS_API_DIR=/path/to/apps/api` を付けてアプリを起動すると、
+  シェルが `python3 -m uvicorn main:app` を自動起動・終了時に停止します
+  (未設定なら uvicorn を手動起動する開発スタイル)
+- Python バックエンドの単一バイナリ化(PyInstaller + Tauri sidecar)は
+  今後の配布フェーズで対応予定です(docs/08 R5)
+
 ## Cubism Editor への読み込み
 
 1. 出力画面から `live2d_import.psd` をダウンロード

@@ -1,0 +1,15 @@
+[package]
+name = "autolive2d-layer-studio"
+version = "0.1.0"
+description = "AutoLive2D Layer Studio - Live2D用パーツ分けPSD生成支援"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[profile.release]
+strip = true
+lto = true

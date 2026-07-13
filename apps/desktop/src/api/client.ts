@@ -11,7 +11,9 @@ import type {
   UserPreferences,
 } from '../types'
 
-const BASE = '/api/v1'
+// Tauri 等の file/カスタムプロトコル配信では相対 /api が使えないため、
+// ビルド時に VITE_API_BASE=http://127.0.0.1:8787 を指定して絶対URLにする。
+const BASE = `${import.meta.env.VITE_API_BASE ?? ''}/api/v1`
 
 export class ApiRequestError extends Error {
   code: string
