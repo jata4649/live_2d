@@ -110,6 +110,45 @@ export function PartsEditorPage() {
     }
   }
 
+  const runResolveOrphans = async () => {
+    await save()
+    try {
+      const r = await api.resolveOrphans(id)
+      if (r.orphan_px_before === 0) {
+        log('未割当ピクセルはありません(全ピクセルがいずれかのパーツに所属済み)')
+      } else {
+        r.assignments.slice(0, 5).forEach((a) =>
+          log(`編入: ${a.part_id} へ ${a.pixels}px(${a.components}成分)`),
+        )
+        log(
+          `未割当ピクセル整合完了: ${r.orphan_px_before}px → ${r.orphan_px_after}px。` +
+            `レイヤー ${r.layers_regenerated.length} 件を再生成しました`,
+        )
+        bumpMaskVersion()
+      }
+    } catch (e) {
+      log(`未割当ピクセル整合に失敗: ${e instanceof Error ? e.message : e}`, 'error')
+    }
+  }
+
+  const runMotionFix = async () => {
+    await save()
+    try {
+      const r = await api.motionFix(id)
+      r.fills.forEach((f) =>
+        log(`穴補完: ${f.moved_part_id} の下(${f.target_part_id})へ ${f.filled_px}px 焼き込み`),
+      )
+      r.skipped.forEach((s) => log(`スキップ: ${s}`, 'error'))
+      log(
+        r.report_after.entries.length === 0
+          ? `モーション穴補完完了: 再チェックで穴なし(${r.fills.length}件補完)`
+          : `モーション穴補完完了: 残り穴 ${r.report_after.entries.length}件`,
+      )
+    } catch (e) {
+      log(`モーション穴補完に失敗: ${e instanceof Error ? e.message : e}`, 'error')
+    }
+  }
+
   const addEmptyPart = () => {
     const n = (plan?.parts.length ?? 0) + 1
     const w = current.source_image.width
@@ -171,6 +210,20 @@ export function PartsEditorPage() {
           onClick={() => void runMotionCheck()}
         >
           モーションチェック
+        </button>
+        <button
+          className="btn"
+          title="モーションチェックの穴を、下のレイヤーへ自動で塗って埋めます"
+          onClick={() => void runMotionFix()}
+        >
+          穴を自動補完
+        </button>
+        <button
+          className="btn"
+          title="どのマスクにも入っていない元画像のピクセルを、隣接と色で最適なパーツへ編入します(合成差分の解消)"
+          onClick={() => void runResolveOrphans()}
+        >
+          未割当ピクセル整合
         </button>
         <button className="btn" onClick={addEmptyPart}>
           + パーツ追加

@@ -22,6 +22,14 @@ def motion_check(project_id: str) -> dict:
     return run_motion_check(project_id).model_dump()
 
 
+@router.post("/motion-fix")
+def motion_fix(project_id: str) -> dict:
+    """モーションチェックの穴を下のレイヤーへ自動補完し、再チェックする。"""
+    from app.services.motion_check_service import fix_motion_holes
+
+    return fix_motion_holes(project_id).model_dump()
+
+
 @router.post("/autofix")
 def autofix(project_id: str) -> dict:
     applied, report = quality_service.apply_autofix(project_id)

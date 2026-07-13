@@ -150,6 +150,20 @@ export const api = {
       }[]
       preview_path: string
     }>(`/projects/${id}/quality/motion-check`, { method: 'POST' }),
+  motionFix: (id: string) =>
+    request<{
+      fills: { moved_part_id: string; target_part_id: string; filled_px: number }[]
+      skipped: string[]
+      report_after: { entries: unknown[]; checked_parts: number }
+    }>(`/projects/${id}/quality/motion-fix`, { method: 'POST' }),
+  resolveOrphans: (id: string) =>
+    request<{
+      orphan_px_before: number
+      orphan_px_after: number
+      components: number
+      assignments: { part_id: string; components: number; pixels: number }[]
+      layers_regenerated: string[]
+    }>(`/projects/${id}/masks/resolve-orphans`, { method: 'POST' }),
   qualityAutofix: (id: string) =>
     request<{ applied: { part_id: string; code: string; action: string }[]; report: QualityReport }>(
       `/projects/${id}/quality/autofix`,

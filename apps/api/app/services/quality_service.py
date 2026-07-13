@@ -70,6 +70,7 @@ def apply_autofix(project_id: str) -> tuple[list[dict], QualityReport]:
     - EDGE_ARTIFACT: マスクを1px膨張 + 1pxぼかし → レイヤー再生成
     - INSUFFICIENT_BLEED: overlap_bleed_px を 4 に引き上げ → レイヤー再生成
     - Z_ORDER_ANOMALY: 後ろ髪より手前の z_order に引き上げ
+    - COMPOSITE_DIFF: 孤児ピクセル整合(resolve_orphans)→ レイヤー再生成
     """
     from app.models.segmentation import RefinementParams
     from app.services import layer_service, mask_service
@@ -87,6 +88,22 @@ def apply_autofix(project_id: str) -> tuple[list[dict], QualityReport]:
     applied: list[dict] = []
     plan_dirty = False
     for issue in report.issues:
+        if issue.code == IssueCode.COMPOSITE_DIFF and issue.auto_fix_available:
+            from app.services.ownership_service import resolve_orphans
+
+            try:
+                r = resolve_orphans(project_id)
+                applied.append({
+                    "part_id": "", "code": issue.code.value,
+                    "action": f"孤児ピクセル {r.orphan_px_before}px を "
+                              f"{len(r.assignments)} パーツへ編入しました",
+                })
+            except Exception as e:
+                applied.append({
+                    "part_id": "", "code": issue.code.value,
+                    "action": f"修正に失敗しました: {e}",
+                })
+            continue
         if not issue.auto_fix_available or not issue.part_id:
             continue
         part = parts_by_id.get(issue.part_id)
@@ -368,5 +385,7 @@ def _check_composite_diff(project_id: str, plan: PartsPlan) -> list[QualityIssue
         code=IssueCode.COMPOSITE_DIFF,
         message=f"合成プレビューが元画像と {result.diff_pixel_ratio:.1%} 異なります"
                 f"({result.diff_pixel_count}px)",
-        suggested_fix="差分プレビューで欠けている箇所を確認し、マスクを修正してください",
+        suggested_fix="自動修正(孤児ピクセル整合)を実行するか、"
+                      "差分プレビューで欠けている箇所を確認して修正してください",
+        auto_fix_available=True,
     )]
