@@ -6,7 +6,8 @@
         "layer_generate",
         "quality_check",
         "export_psd",
-        "export_layers_zip"
+        "export_layers_zip",
+        "auto_pipeline"
       ],
       "title": "JobKind",
       "type": "string"

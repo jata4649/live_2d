@@ -15,6 +15,7 @@ class JobKind(str, Enum):
     quality_check = "quality_check"
     export_psd = "export_psd"
     export_layers_zip = "export_layers_zip"
+    auto_pipeline = "auto_pipeline"
 
 
 class JobStatus(str, Enum):

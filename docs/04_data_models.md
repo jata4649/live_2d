@@ -165,6 +165,8 @@ class Project(BaseModel): project_id; name; created_at; updated_at; source_image
 | `PSD_CONSTRAINT_VIOLATION` | PSD制約違反(ビット深度・カラーモード等) |
 | `FILE_MISSING` | 参照ファイル欠落 |
 | `COLOR_CONTAMINATION` | 色統計ベースの混入検出(目のマスクに肌色が2割混入 等) |
+| `MASK_FRAGMENTED` | マスクが多数の飛び地に断片化(ノイズ除去で自動修正可) |
+| `MASK_TOO_SMALL` | マスクが bbox に対して極小(切り抜き失敗の可能性) |
 
 ## 5. inpaint_tasks.json — `InpaintTaskList`(MVPは生成のみ)
 

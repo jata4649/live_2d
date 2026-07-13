@@ -88,6 +88,17 @@ export function PartDetailPanel() {
     }
   }
 
+  const runSyncBbox = async () => {
+    try {
+      await save()
+      const res = await api.syncBbox(projectId, part.id)
+      log(`bbox をマスク範囲に同期: [${res.bbox.join(', ')}]`)
+      await usePartsStore.getState().load(projectId)
+    } catch (e) {
+      log(`bbox 同期に失敗: ${e instanceof Error ? e.message : e}`, 'error')
+    }
+  }
+
   const runLayer = async () => {
     try {
       await save()
@@ -259,6 +270,13 @@ export function PartDetailPanel() {
           onClick={() => navigate(`/projects/${projectId}/mask/${part.id}`)}
         >
           マスク編集へ
+        </button>
+        <button
+          className="btn w-full"
+          title="bbox を生成済みマスクの実範囲(+余白4px)へ吸着させます"
+          onClick={() => void runSyncBbox()}
+        >
+          bboxをマスク範囲に同期
         </button>
         <button className="btn w-full" onClick={() => void runLayer()}>
           レイヤーPNG生成

@@ -89,6 +89,20 @@ export const api = {
   // --- Segmentation ---
   runSegmentationAll: (id: string) =>
     request<Job>(`/projects/${id}/segmentation/run`, { method: 'POST' }),
+  autoPipeline: (id: string) =>
+    request<Job>(`/projects/${id}/pipeline/auto`, { method: 'POST' }),
+  pipelineSummary: (id: string) =>
+    request<{
+      steps: { step: string; detail: string }[]
+      final_score: number
+      motion_holes_after: number
+      orphan_px_after: number
+    }>(`/projects/${id}/pipeline/summary`),
+  syncBbox: (id: string, partId: string) =>
+    request<{ part_id: string; bbox: [number, number, number, number] }>(
+      `/projects/${id}/masks/${partId}/sync-bbox`,
+      { method: 'POST' },
+    ),
   runSegmentationPart: (id: string, partId: string) =>
     request<{ part_id: string; mask_path: string; warnings: string[] }>(
       `/projects/${id}/segmentation/run/${partId}`,

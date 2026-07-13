@@ -71,6 +71,8 @@ def apply_autofix(project_id: str) -> tuple[list[dict], QualityReport]:
     - INSUFFICIENT_BLEED: overlap_bleed_px を 4 に引き上げ → レイヤー再生成
     - Z_ORDER_ANOMALY: 後ろ髪より手前の z_order に引き上げ
     - COMPOSITE_DIFF: 孤児ピクセル整合(resolve_orphans)→ レイヤー再生成
+    - MISSING_MASK: 相方(_l ↔ _r)マスクがあればミラーコピーで生成
+    - MASK_FRAGMENTED: ノイズ除去 + 穴埋め → レイヤー再生成
     """
     from app.models.segmentation import RefinementParams
     from app.services import layer_service, mask_service
@@ -131,6 +133,25 @@ def apply_autofix(project_id: str) -> tuple[list[dict], QualityReport]:
                 part.z_order = back_hair_max + 10
                 plan_dirty = True
                 action = f"z_order を {part.z_order} に引き上げました"
+            elif issue.code == IssueCode.MISSING_MASK:
+                from app.services.mirror_service import mirror_to_twin, twin_part_id
+
+                twin = twin_part_id(part.id)
+                if twin is None:
+                    continue
+                mirror_to_twin(project_id, twin)  # 相方 → このパーツへコピー
+                action = f"{twin} のマスクをミラーコピーして生成しました"
+            elif issue.code == IssueCode.MASK_FRAGMENTED:
+                mask_service.refine_mask(
+                    project_id, part.id,
+                    RefinementParams(
+                        remove_small_noise=True, fill_holes=True,
+                        smooth_edges=False,
+                    ),
+                )
+                if ProjectPaths(project_id).layer_png(part.id).exists():
+                    layer_service.generate_layer(project_id, part)
+                action = "飛び地ノイズを除去し、穴を埋めました"
             else:
                 continue
             applied.append({
@@ -227,19 +248,29 @@ def _check_z_order(plan: PartsPlan) -> list[QualityIssue]:
 
 
 def _check_files_and_layers(paths: ProjectPaths, plan: PartsPlan) -> list[QualityIssue]:
+    from app.services.mirror_service import twin_part_id
+
     issues = []
     for p in plan.parts:
         mask_path = paths.mask_png(p.id)
         layer_path = paths.layer_png(p.id)
         if not mask_path.exists():
+            # 相方(_l ↔ _r)のマスクがあればミラーコピーで自動修正できる
+            twin = twin_part_id(p.id)
+            twin_has_mask = twin is not None and paths.mask_png(twin).exists()
             issues.append(QualityIssue(
                 severity=Severity.medium if p.required else Severity.low,
                 part_id=p.id,
                 code=IssueCode.MISSING_MASK,
                 message=f"{p.name_jp} のマスクが未生成です",
-                suggested_fix="セグメンテーションを実行してください",
+                suggested_fix=(
+                    f"{twin} からのミラーコピーで自動生成できます"
+                    if twin_has_mask else "セグメンテーションを実行してください"
+                ),
+                auto_fix_available=twin_has_mask,
             ))
             continue
+        issues += _check_mask_shape(paths, p)
         if not layer_path.exists():
             issues.append(QualityIssue(
                 severity=Severity.low,
@@ -279,6 +310,44 @@ def _check_files_and_layers(paths: ProjectPaths, plan: PartsPlan) -> list[Qualit
                 message=f"{p.name_jp} は補完が必要ですが塗り足しが {p.processing.overlap_bleed_px}px しかありません",
                 suggested_fix="overlap_bleed_px を 4 以上にしてください",
                 auto_fix_available=True,
+            ))
+    return issues
+
+
+def _check_mask_shape(paths: ProjectPaths, p) -> list[QualityIssue]:
+    """マスクの形状健全性: 断片化(飛び地だらけ)と極小マスクを検出する。"""
+    import cv2
+
+    issues: list[QualityIssue] = []
+    with Image.open(paths.mask_png(p.id)) as img:
+        mask = (np.asarray(img.convert("L")) > 127).astype(np.uint8)
+    total = int(mask.sum())
+    if total == 0:
+        return issues  # 空マスクは EMPTY_LAYER 側で報告される
+
+    n, _, stats, _ = cv2.connectedComponentsWithStats(mask)
+    if n - 1 > 3:
+        largest = int(stats[1:, cv2.CC_STAT_AREA].max())
+        if largest < 0.9 * total:
+            issues.append(QualityIssue(
+                severity=Severity.low,
+                part_id=p.id,
+                code=IssueCode.MASK_FRAGMENTED,
+                message=f"{p.name_jp} のマスクが {n - 1} 個の飛び地に分かれています",
+                suggested_fix="ノイズ除去と穴埋めで整理できます(自動修正可)",
+                auto_fix_available=True,
+            ))
+
+    if p.segmentation.bbox:
+        _, _, bw, bh = p.segmentation.bbox
+        if total < 0.05 * bw * bh:
+            issues.append(QualityIssue(
+                severity=Severity.low,
+                part_id=p.id,
+                code=IssueCode.MASK_TOO_SMALL,
+                message=f"{p.name_jp} のマスクが bbox の {total / (bw * bh):.0%} "
+                        "しかありません(切り抜き失敗の可能性)",
+                suggested_fix="bbox やポイントプロンプトを調整して再セグメントしてください",
             ))
     return issues
 

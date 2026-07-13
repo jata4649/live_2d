@@ -49,6 +49,34 @@ def save_mask_from_png_bytes(project_id: str, part_id: str, data: bytes) -> str:
     return save_mask(project_id, part_id, mask.copy())
 
 
+def sync_bbox_to_mask(project_id: str, part_id: str, pad_px: int = 4) -> list[int]:
+    """パーツの bbox を生成済みマスクの実範囲(+余白)へ吸着させる。
+
+    テンプレート由来の広すぎる bbox を実態に合わせることで、
+    以降の自動ポイントプロンプトや UI 上の見通しが良くなる。
+    """
+    from app.services.project_service import load_parts, save_parts
+
+    mask = load_mask(project_id, part_id)
+    ys, xs = np.nonzero(mask > 127)
+    if len(xs) == 0:
+        raise MaskError(f"マスクが空のため bbox を同期できません: {part_id}")
+    h, w = mask.shape
+    x0 = max(0, int(xs.min()) - pad_px)
+    y0 = max(0, int(ys.min()) - pad_px)
+    x1 = min(w, int(xs.max()) + 1 + pad_px)
+    y1 = min(h, int(ys.max()) + 1 + pad_px)
+    bbox = [x0, y0, x1 - x0, y1 - y0]
+
+    plan = load_parts(project_id)
+    part = next((p for p in plan.parts if p.id == part_id), None)
+    if part is None:
+        raise MaskError(f"パーツが見つかりません: {part_id}")
+    part.segmentation.bbox = bbox
+    save_parts(project_id, plan)
+    return bbox
+
+
 def refine_mask(project_id: str, part_id: str, params: RefinementParams) -> str:
     mask = load_mask(project_id, part_id)
     refined = mask_ops.apply_refinement(
