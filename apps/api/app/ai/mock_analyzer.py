@@ -111,18 +111,32 @@ class MockAnalyzer(CharacterAnalyzer):
     def generate_segmentation_tasks(
         self, parts_plan: PartsPlan
     ) -> SegmentationTaskList:
+        from app.models.parts import SegmentationMethod
+        from app.segmentation.sam2_segmenter import sam2_importable
+
+        use_sam2 = sam2_importable()
         tasks = []
         for part in parts_plan.parts:
             if part.locked:
                 continue
+            positives = list(part.segmentation.positive_points)
+            negatives = list(part.segmentation.negative_points)
+            if not positives and part.segmentation.bbox:
+                positives, auto_negatives = auto_prompts(part, parts_plan)
+                if not negatives:
+                    negatives = auto_negatives
+            method = part.segmentation.method
+            # SAM2 が導入済みなら、既定(manual_box)のパーツは自動で SAM2 経路へ
+            if use_sam2 and method == SegmentationMethod.manual_box:
+                method = SegmentationMethod.sam2_box
             tasks.append(
                 SegmentationTask(
                     task_id=str(uuid.uuid4()),
                     part_id=part.id,
-                    method=part.segmentation.method,
+                    method=method,
                     bbox=part.segmentation.bbox,
-                    positive_points=part.segmentation.positive_points,
-                    negative_points=part.segmentation.negative_points,
+                    positive_points=positives,
+                    negative_points=negatives,
                     text_prompt=part.segmentation.text_prompt,
                     expected_output=part.files.mask_path or f"masks/{part.id}_mask.png",
                     refinement=RefinementParams(
@@ -138,6 +152,41 @@ class MockAnalyzer(CharacterAnalyzer):
         from app.services.rigging_plan_service import render_rigging_plan
 
         return render_rigging_plan(parts_plan, user_preferences)
+
+
+def auto_prompts(part, parts_plan: PartsPlan) -> tuple[list[list[int]], list[list[int]]]:
+    """パーツの bbox からセグメンテーション用ポイントを自動生成する。
+
+    - positive: bbox 中心 1 点
+    - negative: この bbox の内側に中心があり、面積がより小さい別グループ
+      パーツの中心(例: 顔の切り抜き時に目・口の中心を負例に打つ → 混入防止)
+    """
+    x, y, w, h = part.segmentation.bbox
+    positives = [[x + w // 2, y + h // 2]]
+    negatives: list[list[int]] = []
+    my_area = w * h
+    for other in parts_plan.parts:
+        if other.id == part.id or not other.segmentation.bbox:
+            continue
+        # 同グループのパーツ(白目の中の虹彩・ハイライトなど)は
+        # 同じ領域の一部なので負例にしない
+        if other.group == part.group:
+            continue
+        ox, oy, ow, oh = other.segmentation.bbox
+        # ほぼ同サイズの重なり(まぶた/まつげ等)を負例にすると相互に
+        # 削り合うため、明確に小さい内包パーツのみを負例にする
+        if ow * oh >= 0.6 * my_area:
+            continue
+        cx, cy = ox + ow // 2, oy + oh // 2
+        # 中心が bbox の内側(境界から少し内側)にあるものだけ
+        margin_x, margin_y = w // 10, h // 10
+        if (x + margin_x <= cx <= x + w - margin_x
+                and y + margin_y <= cy <= y + h - margin_y
+                and [cx, cy] not in negatives):
+            negatives.append([cx, cy])
+        if len(negatives) >= 8:
+            break
+    return positives, negatives
 
 
 def get_analyzer(name: str = "mock") -> CharacterAnalyzer:

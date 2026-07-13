@@ -138,6 +138,18 @@ export const api = {
   // --- Quality / Export ---
   qualityCheck: (id: string) =>
     request<QualityReport>(`/projects/${id}/quality/check`, { method: 'POST' }),
+  motionCheck: (id: string) =>
+    request<{
+      amplitude_px: number
+      checked_parts: number
+      entries: {
+        part_id: string
+        shift: [number, number]
+        hole_px: number
+        hole_ratio: number
+      }[]
+      preview_path: string
+    }>(`/projects/${id}/quality/motion-check`, { method: 'POST' }),
   qualityAutofix: (id: string) =>
     request<{ applied: { part_id: string; code: string; action: string }[]; report: QualityReport }>(
       `/projects/${id}/quality/autofix`,

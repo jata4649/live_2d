@@ -2,7 +2,7 @@
 // 座標規約: 保存座標は常に正規化画像ピクセル座標。ズーム/パンはビュー変換のみ。
 import Konva from 'konva'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Image as KImage, Layer, Rect, Stage, Transformer } from 'react-konva'
+import { Circle, Image as KImage, Layer, Rect, Stage, Transformer } from 'react-konva'
 import { maskUrl } from '../../api/client'
 import { usePartsStore } from '../../stores/partsStore'
 import type { Part } from '../../types'
@@ -122,6 +122,29 @@ export function BBoxCanvas({
     }))
   }
 
+  // ポイントプロンプト編集(Shift+クリック=前景 / Alt+クリック=背景)
+  const addPoint = (kind: 'positive_points' | 'negative_points', px: number, py: number) => {
+    if (!selected || selected.locked) return
+    updatePartDeep(selected.id, (p) => ({
+      ...p,
+      segmentation: {
+        ...p.segmentation,
+        [kind]: [...p.segmentation[kind], [Math.round(px), Math.round(py)]],
+      },
+    }))
+  }
+
+  const removePoint = (kind: 'positive_points' | 'negative_points', index: number) => {
+    if (!selected) return
+    updatePartDeep(selected.id, (p) => ({
+      ...p,
+      segmentation: {
+        ...p.segmentation,
+        [kind]: p.segmentation[kind].filter((_, i) => i !== index),
+      },
+    }))
+  }
+
   const otherParts = useMemo(
     () =>
       showAllBoxes && plan
@@ -147,6 +170,20 @@ export function BBoxCanvas({
         }}
         onWheel={onWheel}
         onMouseDown={(e) => {
+          // Shift/Alt+クリック: 選択パーツへのポイントプロンプト追加
+          if ((e.evt.shiftKey || e.evt.altKey) && selected) {
+            e.evt.preventDefault()
+            const stage = e.target.getStage()
+            const pointer = stage?.getPointerPosition()
+            if (pointer) {
+              addPoint(
+                e.evt.shiftKey ? 'positive_points' : 'negative_points',
+                (pointer.x - view.x) / view.scale,
+                (pointer.y - view.y) / view.scale,
+              )
+            }
+            return
+          }
           if (e.target === e.target.getStage() || e.target.name() === 'bg-image') {
             select(null)
           }
@@ -222,6 +259,25 @@ export function BBoxCanvas({
               )}
             </>
           )}
+          {selected &&
+            (['positive_points', 'negative_points'] as const).map((kind) =>
+              selected.segmentation[kind].map(([px, py], i) => (
+                <Circle
+                  key={`${kind}-${i}`}
+                  x={px}
+                  y={py}
+                  radius={5 / view.scale}
+                  fill={kind === 'positive_points' ? '#22c55e' : '#ef4444'}
+                  stroke="#ffffff"
+                  strokeWidth={1.5 / view.scale}
+                  onMouseDown={(e) => {
+                    // クリックで削除(ステージ側の追加処理は発火させない)
+                    e.cancelBubble = true
+                    removePoint(kind, i)
+                  }}
+                />
+              )),
+            )}
         </Layer>
       </Stage>
     </div>

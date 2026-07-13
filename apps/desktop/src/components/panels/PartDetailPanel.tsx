@@ -174,6 +174,33 @@ export function PartDetailPanel() {
         </div>
       </Field>
 
+      <Field label="ポイントプロンプト(前景/背景)">
+        <div className="flex items-center gap-2 text-neutral-300">
+          <span className="text-green-400">
+            ● {part.segmentation.positive_points.length}
+          </span>
+          <span className="text-red-400">
+            ● {part.segmentation.negative_points.length}
+          </span>
+          {(part.segmentation.positive_points.length > 0 ||
+            part.segmentation.negative_points.length > 0) && (
+            <button
+              className="ml-auto rounded border border-neutral-600 px-2 py-0.5 hover:bg-neutral-700"
+              onClick={() => {
+                seg('positive_points', [])
+                seg('negative_points', [])
+              }}
+            >
+              クリア
+            </button>
+          )}
+        </div>
+        <div className="mt-1 text-[10px] text-neutral-500">
+          キャンバスで Shift+クリック=前景(緑)/ Alt+クリック=背景(赤)、
+          点クリックで削除。SAM2・色分離の精度向上に使われます
+        </div>
+      </Field>
+
       <Field label={`塗り足し: ${part.processing.overlap_bleed_px}px`}>
         <input
           type="range"
