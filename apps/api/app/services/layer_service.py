@@ -6,10 +6,12 @@ from typing import Callable, Optional
 import numpy as np
 from PIL import Image
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.paths import ProjectPaths
 from app.image_processing import masks as mask_ops
 from app.image_processing.alpha import extract_layer
+from app.image_processing.matting import soft_edge_alpha
 from app.models.parts import Part
 from app.services import mask_service
 from app.services.image_service import load_normalized_rgba
@@ -30,6 +32,9 @@ def generate_layer(project_id: str, part: Part, image: np.ndarray | None = None)
 
     if part.processing.overlap_bleed_px > 0:
         mask = mask_ops.dilate(mask, part.processing.overlap_bleed_px)
+    if settings.soft_edges:
+        # 境界帯を画像エッジに沿った連続アルファへ(髪の毛先対策)
+        mask = soft_edge_alpha(image, mask)
     if part.processing.edge_feather_px > 0:
         mask = mask_ops.feather(mask, part.processing.edge_feather_px)
 
