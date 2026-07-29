@@ -23,6 +23,26 @@
 11. リギング設計書(`rigging_plan.md`)の生成 — **Mermaid デフォーマツリー・ヒアリング反映の可動域・bbox比から算出した物理演算推奨値**つき
 12. **OpenRaster (.ora) 出力** — Krita / GIMP でそのまま開けるオープン形式
 
+## 高精度セットアップ(推奨)
+
+オフライン既定(テンプレート解析+簡易切り抜き)は動作確認向けで、**実絵の品質は Claude API + SAM2 の導入で根本的に変わります**(パーツ設計が実画像ベースに、切り抜きが機械学習ベースになります)。
+
+```powershell
+# Windows(NVIDIA GPU あり)— リポジトリのルートで
+powershell -ExecutionPolicy Bypass -File scripts\setup_ai.ps1
+setx ALS_SAM2_DEVICE "cuda"
+setx ANTHROPIC_API_KEY "sk-ant-..."   # https://console.anthropic.com で作成
+# → 新しいターミナルでバックエンドを起動し直す
+```
+
+```bash
+# Mac / Linux
+bash scripts/setup_ai.sh          # GPUなし・Mac は --cpu
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+導入状態は `python scripts/check_ai.py`(apps/api 内)または**アプリのホーム画面下部「AI 環境ステータス」**で確認できます。Claude が有効ならヒアリング画面で自動選択され、全自動仕上げも Claude を使います。
+
 ## セットアップ
 
 必要環境: Python 3.11+ / Node.js 20+

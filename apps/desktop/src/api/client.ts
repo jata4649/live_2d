@@ -210,6 +210,16 @@ export const api = {
 
   // --- Jobs ---
   getJob: (jobId: string) => request<Job>(`/jobs/${jobId}`),
+  getEnvironment: () =>
+    request<{
+      analyzers: { name: string; label: string; available: boolean; reason: string }[]
+      segmenters: { method: string; label: string; available: boolean; reason: string }[]
+      bg_removal: { available: boolean; reason: string }
+      torch: { installed: boolean; cuda: boolean; device_name: string }
+      anthropic_key_set: boolean
+      sam2_device: string
+      hints: string[]
+    }>('/environment'),
 }
 
 // プロジェクト内ファイルのURL(キャッシュ回避のためのバージョンパラメータ付き)
